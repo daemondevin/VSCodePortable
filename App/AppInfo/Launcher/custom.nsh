@@ -17,9 +17,9 @@ Var RemoteVersion
 !define ZIP         `VSCode-win32-x64.zip`
 !define VSZIP       `$EXEDIR\${ZIP}`
 !define cURLP       `$PLUGINSDIR\curl.exe`
-!define cURLS		`$SYSDIR\curl.exe`
-!define jq      	`$PLUGINSDIR\jq.exe`
-!define 7z      	`$PLUGINSDIR\7z.exe`
+!define cURLS       `$SYSDIR\curl.exe`
+!define jq          `$PLUGINSDIR\jq.exe`
+!define 7z          `$PLUGINSDIR\7z.exe`
 !define _           `${PAF}\Keys`
 !define CL          SOFTWARE\Classes
 !define CLS         HKLM\${CL}
@@ -240,15 +240,15 @@ ${Segment.OnInit}
 	${EndIf}
 !macroend
 !macro Init
-	${ConfigReads} `${CONFIG}` Banner= $0
-	StrCmpS $0 true 0 +6
-	Banner::show ""
-	Banner::getWindow
-	Pop $0
-	GetDlgItem $0 $0 1030
-	SendMessage $0 ${WM_SETTEXT} 0 "STR:$(i)"
-	${Init::File} code\User settings.json
-	${Init::File} Fonts .Portable.Fonts.txt
+    ${ConfigReads} `${CONFIG}` Banner= $0
+    StrCmpS $0 true 0 +6
+    Banner::show ""
+    Banner::getWindow
+    Pop $0
+    GetDlgItem $0 $0 1030
+    SendMessage $0 ${WM_SETTEXT} 0 "STR:$(i)"
+    ${Init::File} code\User settings.json
+    ${Init::File} Fonts .Portable.Fonts.txt
     ;=# 
     ;= TODO :
     ; Rewrite this functionality as it's own
@@ -262,8 +262,8 @@ ${Segment.OnInit}
     ; forgive me as I'm rusty.
     ;= THNX :
     ;=#
-	${ConfigReads} `${CONFIG}` UpdateCheck= $0
-	StrCmpS $0 true 0 _FINISHED
+    ${ConfigReads} `${CONFIG}` UpdateCheck= $0
+    StrCmpS $0 true 0 _FINISHED
     ${ReadAppInfoConfig} $LocalVersion "Version" "DisplayVersion"
     File /oname=${jq} Contrib\bin\jq.exe
     ${If} ${AtLeastWin10}
@@ -271,10 +271,10 @@ ${Segment.OnInit}
     ${Else}
         File /oname=${cURLP} Contrib\bin\curl.exe
         nsExec::ExecToStack `cmd /C "${cURLP} --no-progress-meter ${URL} | ${jq} -r .name"`
-	${EndIf}
-	Pop $0
-	Pop $1
-	${TRIM} $2 $1
+    ${EndIf}
+    Pop $0
+    Pop $1
+    ${TRIM} $2 $1
     StrCpy $RemoteVersion $2
     StrCmp $LocalVersion $RemoteVersion _MATCH _DIFFER
     _MATCH:

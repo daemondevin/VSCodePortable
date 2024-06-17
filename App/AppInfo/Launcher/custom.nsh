@@ -9,6 +9,35 @@
 Var LocalVersion
 Var RemoteVersion
 
+Var BasePath
+Var ExtraPath
+
+Var CmdPath
+Var PythonPath
+
+Var GitDir
+Var MinGWDir
+Var PythonDir
+Var JavaDir
+Var NodeJSDir
+Var GolangDir
+Var RustDir
+Var AndroidStudioDir
+Var AndroidStudioExist
+Var AndroidSdkDir
+Var FlutterDir
+Var SparkDir
+
+Var GitHome
+Var PythonUser
+Var NodePrefix
+Var GolangPath
+Var RustCargoHome
+Var AndroidUser
+Var AndroidGoogle
+Var DartPubCache
+Var PlatformIOCore
+
 ;= DEFINES
 ;= ################
 !define oNET        `SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full`
@@ -17,9 +46,9 @@ Var RemoteVersion
 !define ZIP         `VSCode-win32-x64.zip`
 !define VSZIP       `$EXEDIR\${ZIP}`
 !define cURLP       `$PLUGINSDIR\curl.exe`
-!define cURLS       `$SYSDIR\curl.exe`
-!define jq          `$PLUGINSDIR\jq.exe`
-!define 7z          `$PLUGINSDIR\7z.exe`
+!define cURLS		`$SYSDIR\curl.exe`
+!define jq      	`$PLUGINSDIR\jq.exe`
+!define 7z      	`$PLUGINSDIR\7z.exe`
 !define _           `${PAF}\Keys`
 !define CL          SOFTWARE\Classes
 !define CLS         HKLM\${CL}
@@ -73,22 +102,22 @@ LangString FINISHED ${LANG_ITALIAN}         `${FULLNAME} � stato aggiornato co
 LangString FINISHED ${LANG_JAPANESE}        `${FULLNAME} ???????????$\r$\n$\r$\n${PORTABLEAPPNAME} ???????`
 LangString FINISHED ${LANG_PORTUGUESEBR}    `${FULLNAME} foi atualizado com sucesso$\r$\n$\r$\nAgora iniciando ${PORTABLEAPPNAME}.`
 LangString FINISHED ${LANG_SPANISH}         `${FULLNAME} se ha actualizado correctamente$\r$\n$\r$\nAhora iniciamos ${PORTABLEAPPNAME}.`
-LangString DOWNLOAD ${LANG_ENGLISH}         `Downloading ${FULLNAME} $RemoteVersion Please wait..`
-LangString DOWNLOAD ${LANG_SIMPCHINESE}     `正在下载 ${FULLNAME} $RemoteVersion 请稍等..`
-LangString DOWNLOAD ${LANG_FRENCH}          `Téléchargement de ${FULLNAME} $RemoteVersion S'il vous plaît, attendez..`
-LangString DOWNLOAD ${LANG_GERMAN}          `${FULLNAME} $RemoteVersion wird heruntergeladen Bitte warten..`
-LangString DOWNLOAD ${LANG_ITALIAN}         `Download di ${FULLNAME} $RemoteVersion Attendere prego..`
-LangString DOWNLOAD ${LANG_JAPANESE}        `${FULLNAME} $RemoteVersion をダウンロードしています お待ちください..`
-LangString DOWNLOAD ${LANG_PORTUGUESEBR}    `Baixando ${FULLNAME} $RemoteVersion Por favor, aguarde..`
-LangString DOWNLOAD ${LANG_SPANISH}         `Descargando ${FULLNAME} $RemoteVersion Espere por favor..`
-LangString UPDATING ${LANG_ENGLISH}         `Updating ${FULLNAME}. Almost done..`
-LangString UPDATING ${LANG_SIMPCHINESE}     `正在更新${FULLNAME}。 快完成了..`
-LangString UPDATING ${LANG_FRENCH}          `Mise à jour de ${FULLNAME}. Presque fini..`
-LangString UPDATING ${LANG_GERMAN}          `${FULLNAME} wird aktualisiert. Fast fertig..`
-LangString UPDATING ${LANG_ITALIAN}         `Aggiornamento di ${FULLNAME}. Quasi fatto..`
-LangString UPDATING ${LANG_JAPANESE}        `${FULLNAME} を更新しています。 ほぼ完了しました..`
-LangString UPDATING ${LANG_PORTUGUESEBR}    `Atualizando ${FULLNAME}. Quase pronto..`
-LangString UPDATING ${LANG_SPANISH}         `Actualizando ${FULLNAME}. Casi termino..`
+LangString DOWNLOAD ${LANG_ENGLISH}         `Downloading ${APP} $RemoteVersion..`
+LangString DOWNLOAD ${LANG_SIMPCHINESE}     `正在下载 ${APP} $RemoteVersion 请稍等..`
+LangString DOWNLOAD ${LANG_FRENCH}          `Téléchargement de ${APP} $RemoteVersion S'il vous plaît, attendez..`
+LangString DOWNLOAD ${LANG_GERMAN}          `${APP} $RemoteVersion wird heruntergeladen Bitte warten..`
+LangString DOWNLOAD ${LANG_ITALIAN}         `Download di ${APP} $RemoteVersion Attendere prego..`
+LangString DOWNLOAD ${LANG_JAPANESE}        `${APP} $RemoteVersion をダウンロードしています お待ちください..`
+LangString DOWNLOAD ${LANG_PORTUGUESEBR}    `Baixando ${APP} $RemoteVersion Por favor, aguarde..`
+LangString DOWNLOAD ${LANG_SPANISH}         `Descargando ${APP} $RemoteVersion Espere por favor..`
+LangString UPDATING ${LANG_ENGLISH}         `Updating ${APP}. Almost done..`
+LangString UPDATING ${LANG_SIMPCHINESE}     `正在更新${APP}。 快完成了..`
+LangString UPDATING ${LANG_FRENCH}          `Mise à jour de ${APP}. Presque fini..`
+LangString UPDATING ${LANG_GERMAN}          `${APP} wird aktualisiert. Fast fertig..`
+LangString UPDATING ${LANG_ITALIAN}         `Aggiornamento di ${APP}. Quasi fatto..`
+LangString UPDATING ${LANG_JAPANESE}        `${APP} を更新しています。 ほぼ完了しました..`
+LangString UPDATING ${LANG_PORTUGUESEBR}    `Atualizando ${APP}. Quase pronto..`
+LangString UPDATING ${LANG_SPANISH}         `Actualizando ${APP}. Casi termino..`
 
 ;= INCLUDES
 ;= ################
@@ -240,15 +269,18 @@ ${Segment.OnInit}
 	${EndIf}
 !macroend
 !macro Init
-    ${ConfigReads} `${CONFIG}` Banner= $0
-    StrCmpS $0 true 0 +6
-    Banner::show ""
-    Banner::getWindow
-    Pop $0
-    GetDlgItem $0 $0 1030
-    SendMessage $0 ${WM_SETTEXT} 0 "STR:$(i)"
-    ${Init::File} code\User settings.json
-    ${Init::File} Fonts .Portable.Fonts.txt
+    ExpandEnvStrings "$CmdPath" "%COMSPEC%"
+	${ConfigReads} `${CONFIG}` Banner= $0
+	StrCmpS $0 true 0 +6
+	Banner::show ""
+	Banner::getWindow
+	Pop $0
+	GetDlgItem $0 $0 1030
+	SendMessage $0 ${WM_SETTEXT} 0 "STR:$(i)"
+	${Init::File} code\User settings.json
+	${Init::File} Fonts .Portable.Fonts.txt
+!macroend
+${SegmentPre}
     ;=# 
     ;= TODO :
     ; Rewrite this functionality as it's own
@@ -262,8 +294,8 @@ ${Segment.OnInit}
     ; forgive me as I'm rusty.
     ;= THNX :
     ;=#
-    ${ConfigReads} `${CONFIG}` UpdateCheck= $0
-    StrCmpS $0 true 0 _FINISHED
+	${ConfigReads} `${CONFIG}` UpdateCheck= $0
+	StrCmpS $0 true 0 _FINISHED
     ${ReadAppInfoConfig} $LocalVersion "Version" "DisplayVersion"
     File /oname=${jq} Contrib\bin\jq.exe
     ${If} ${AtLeastWin10}
@@ -271,10 +303,10 @@ ${Segment.OnInit}
     ${Else}
         File /oname=${cURLP} Contrib\bin\curl.exe
         nsExec::ExecToStack `cmd /C "${cURLP} --no-progress-meter ${URL} | ${jq} -r .name"`
-    ${EndIf}
-    Pop $0
-    Pop $1
-    ${TRIM} $2 $1
+	${EndIf}
+	Pop $0
+	Pop $1
+	${TRIM} $2 $1
     StrCpy $RemoteVersion $2
     StrCmp $LocalVersion $RemoteVersion _MATCH _DIFFER
     _MATCH:
@@ -303,20 +335,24 @@ ${Segment.OnInit}
         Pop $0
         Pop $1
         Banner::destroy
+        Sleep 1000
         ${If} ${FileExists} "${VSZIP}"
             Banner::show ""
             Banner::getWindow
             Pop $0
             GetDlgItem $0 $0 1030
             SendMessage $0 ${WM_SETTEXT} 0 "STR:$(UPDATING)"
+            ClearErrors
+            RMDir /r "$EXEDIR\App\VSCode"
+            Sleep 500
+            CreateDirectory "$EXEDIR\App\VSCode"
             File /oname=${7z} Contrib\bin\7z.exe
-            nsExec::Exec `cmd /C "${7z} x ${VSZIP} -aoa -o${APPDIR}"`
+            nsExec::Exec `cmd /C "${7z} x ${VSZIP} -aoa -o$EXEDIR\App\VSCode"`
             Pop $0
             Banner::destroy
             ${If} $0 == 0
                 ${WriteAppInfoConfig} "Version" "DisplayVersion" "$RemoteVersion"
                 ${WriteAppInfoConfig} "Version" "PackageVersion" "$RemoteVersion.0"
-                Delete "${VSZIP}"
                 MessageBox MB_ICONINFORMATION|MB_TOPMOST `$(FINISHED)`
                 Goto _FINISHED
             ${Else}
@@ -326,6 +362,7 @@ ${Segment.OnInit}
             Goto _FAILED
         ${EndIf}
     _FINISHED:
+    Delete "${VSZIP}"
 !macroend
 ${SegmentPrePrimary}
     ${File::BackupLocal} `${SND}`

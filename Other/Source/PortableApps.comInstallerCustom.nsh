@@ -2,6 +2,8 @@
 ;= VARIABLES
 ;= ################
 Var Developer
+Var PortableVersion
+Var ProgramVersion
 
 ;= DEFINES
 ;= ################
@@ -55,4 +57,16 @@ Var Developer
     Rename "$INSTDIR\App\VSCode-win32-ia32" "$INSTDIR\App\${APP}"
 	IfFileExists "$INSTDIR\${PORTABLE}.ini" +2
 	CopyFiles /SILENT "$INSTDIR\Other\Source\${PORTABLE}.ini" "$INSTDIR"
+    GetDllVersion "$INSTDIR\App\${APP}\code.exe" $R0 $R1
+    IntOp $R2 $R0 / 0x00010000
+    IntOp $R3 $R0 & 0x0000FFFF
+    IntOp $R4 $R1 / 0x00010000
+    IntOp $R5 $R1 & 0x0000FFFF
+    StrCpy $ProgramVersion "$R2.$R3.$R4.$R5"
+    ReadINIStr $PortableVersion "$INSTDIR\App\AppInfo\appinfo.ini" Version PackageVersion
+    ${VersionCompare} $PortableVersion $ProgramVersion $0
+    ${If} $0 == 2
+        WriteINIStr "$INSTDIR\App\AppInfo\appinfo.ini" Version PackageVersion $ProgramVersion
+        WriteINIStr "$INSTDIR\App\AppInfo\appinfo.ini" Version DisplayVersion "$R2.$R3.$R4"
+    ${EndIf}
 !macroend

@@ -8,35 +8,16 @@
 ;= ################
 Var LocalVersion
 Var RemoteVersion
-
 Var BasePath
 Var ExtraPath
-
 Var CmdPath
-Var PythonPath
-
 Var GitDir
-Var MinGWDir
-Var PythonDir
-Var JavaDir
-Var NodeJSDir
-Var GolangDir
-Var RustDir
-Var AndroidStudioDir
-Var AndroidStudioExist
-Var AndroidSdkDir
-Var FlutterDir
-Var SparkDir
-
 Var GitHome
+Var PythonDir
 Var PythonUser
+Var PythonPath
+Var NodeJSDir
 Var NodePrefix
-Var GolangPath
-Var RustCargoHome
-Var AndroidUser
-Var AndroidGoogle
-Var DartPubCache
-Var PlatformIOCore
 
 ;= DEFINES
 ;= ################
@@ -58,7 +39,6 @@ Var PlatformIOCore
 !define EXT         HKCU\${EX}
 !define EXE         `${APPDIR}\${APP}.exe`
 !define SND         `$SENDTO\${APP}.lnk`
-!define PFM         `$0\PortableApps.com\PortableAppsPlatform.exe`
 
 ;= LANGUAGE
 ;= ################
@@ -78,6 +58,22 @@ LangString NET      ${LANG_ITALIAN}         `.NET Errore:$\r$\n$\r$\nv4.5 o supe
 LangString NET      ${LANG_JAPANESE}        `.NET???:$\r$\n$\r$\n.NET Framework?v4.5??????????????????????$\r$\n$\r$\n??!`
 LangString NET      ${LANG_PORTUGUESEBR}    `Erro .NET:$\r$\n$\r$\nv4.5 ou superior do .NET Framework deve ser instalado.$\r$\n$\r$\nAbortando!`
 LangString NET      ${LANG_SPANISH}         `.NET Error:$\r$\n$\r$\ndebe instalarse v4.5 o superior del .NET Framework.$\r$\n$\r$\nAbortar!`
+LangString PATH     ${LANG_ENGLISH}         `The "PATH" environment variable is too long!$\r$\n$\r$\nUsing the default setting.`
+LangString PATH     ${LANG_SIMPCHINESE}     `“PATH”环境变量太长！$\r$\n$\r$\n使用默认设置。`
+LangString PATH     ${LANG_FRENCH}          `La variable d'environnement « PATH » est trop longue !$\r$\n$\r$\nUtilisation du paramètre par défaut.`
+LangString PATH     ${LANG_GERMAN}          `Die Umgebungsvariable „PATH“ ist zu lang!$\r$\n$\r$\nVerwende die Standardeinstellung.`
+LangString PATH     ${LANG_ITALIAN}         `La variabile d'ambiente "PATH" è troppo lunga!$\r$\n$\r$\nSi utilizza l'impostazione predefinita.`
+LangString PATH     ${LANG_JAPANESE}        `"PATH" 環境変数が長すぎます!$\r$\n$\r$\nデフォルト設定を使用します。`
+LangString PATH     ${LANG_PORTUGUESEBR}    `A variável de ambiente "PATH" é muito longa!$\r$\n$\r$\nUsando a configuração padrão.`
+LangString PATH     ${LANG_SPANISH}         `¡La variable de entorno "PATH" es demasiado larga!$\r$\n$\r$\nUsando la configuración predeterminada.`
+LangString VSIX     ${LANG_ENGLISH}         `Install "$R2"?$\r$\n$\r$\nInstalling may take a while so please be patient.`
+LangString VSIX     ${LANG_SIMPCHINESE}     `安装“$R2”？$\r$\n$\r$\n安装可能需要一段时间，请耐心等待。`
+LangString VSIX     ${LANG_FRENCH}          `Installer « $R2 » ?$\r$\n$\r$\nL'installation peut prendre un certain temps, veuillez donc être patient.`
+LangString VSIX     ${LANG_GERMAN}          `"$R2" installieren?$\r$\n$\r$\nDie Installation kann eine Weile dauern, haben Sie also bitte Geduld.`
+LangString VSIX     ${LANG_ITALIAN}         `Installare "$R2"?$\r$\n$\r$\nL'installazione potrebbe richiedere un po' di tempo, quindi sii paziente.`
+LangString VSIX     ${LANG_JAPANESE}        `「$R2」をインストールしますか?$\r$\n$\r$\nインストールにはしばらく時間がかかる場合がありますので、しばらくお待ちください。`
+LangString VSIX     ${LANG_PORTUGUESEBR}    `Instalar "$R2"?$\r$\n$\r$\nA instalação pode demorar um pouco, então seja paciente.`
+LangString VSIX     ${LANG_SPANISH}         `¿Instalar "$R2"?$\r$\n$\r$\nLa instalación puede tardar un poco, así que tenga paciencia.`
 LangString FAILED   ${LANG_ENGLISH}         `Update check failed!$\r$\n$\r$\nYou need to update ${PORTABLEAPPNAME} manually.`
 LangString FAILED   ${LANG_SIMPCHINESE}     `??????!$\r$\n$\r$\n???????${PORTABLEAPPNAME}?`
 LangString FAILED   ${LANG_FRENCH}          `�chec de la v�rification de la mise � jour�!$\r$\n$\r$\nVous devez mettre � jour ${PORTABLEAPPNAME} manuellement.`
@@ -314,6 +310,10 @@ ${SegmentPre}
         
     _FAILED:
         MessageBox MB_ICONSTOP|MB_TOPMOST `$(FAILED)`
+        IfFileExists `$EXEDIR\App\${APP}` 0 +2
+        RMDir /r `$EXEDIR\App\${APP}`
+        IfFileExists `$EXEDIR\App\${APP}-backup\*.*` 0 +2
+        Rename "$EXEDIR\App\${APP}-backup" "$EXEDIR\App\${APP}"
         Goto _FINISHED
         
     _DIFFER:
@@ -343,17 +343,18 @@ ${SegmentPre}
             GetDlgItem $0 $0 1030
             SendMessage $0 ${WM_SETTEXT} 0 "STR:$(UPDATING)"
             ClearErrors
-            RMDir /r "$EXEDIR\App\VSCode"
+            Rename "$EXEDIR\App\${APP}" "$EXEDIR\App\${APP}-backup"
             Sleep 500
-            CreateDirectory "$EXEDIR\App\VSCode"
+            CreateDirectory "$EXEDIR\App\${APP}"
             File /oname=${7z} Contrib\bin\7z.exe
-            nsExec::Exec `cmd /C "${7z} x ${VSZIP} -aoa -o$EXEDIR\App\VSCode"`
+            nsExec::Exec `cmd /C "${7z} x ${VSZIP} -aoa -o$EXEDIR\App\${APP}"`
             Pop $0
             Banner::destroy
             ${If} $0 == 0
                 ${WriteAppInfoConfig} "Version" "DisplayVersion" "$RemoteVersion"
                 ${WriteAppInfoConfig} "Version" "PackageVersion" "$RemoteVersion.0"
                 MessageBox MB_ICONINFORMATION|MB_TOPMOST `$(FINISHED)`
+                Delete "${VSZIP}"
                 Goto _FINISHED
             ${Else}
                 Goto _FAILED
@@ -362,7 +363,6 @@ ${SegmentPre}
             Goto _FAILED
         ${EndIf}
     _FINISHED:
-    Delete "${VSZIP}"
 !macroend
 ${SegmentPrePrimary}
     ${File::BackupLocal} `${SND}`
@@ -376,6 +376,110 @@ ${SegmentPrePrimary}
 	StrCmpS $0 true 0 +3
 	StrCmpS $SecondaryLaunch true +2
 	Banner::destroy
+	;=#
+	;= Detect Environments
+	; Git
+	${ConfigReads} `${CONFIG}` GIT= $GitDir
+	ExpandEnvStrings "$GitDir" "$GitDir"
+	${If} ${FileExists} "$GitDir\cmd\git.exe"
+		${ConfigReads} `${CONFIG}` GitHomePath= $GitHome
+		${If} "$GitHome" == "true"
+			CreateDirectory "${DATA}\Git\home"
+			; If not set, the default is "%UserProfile%"
+			${SetEnvironmentVariablesPath} "HOME" "${DATA}\Git\home"
+			; Also copy custom shell config files on first run (contains workaround for "cd" command)
+			; These files may be overwritten by Oh My Zsh, so you may need to re-add the "cd" alias manually
+			${IfNot} ${FileExists} "${DATA}\Git\home\.bashrc"
+				CopyFiles /Silent "${DEFDATA}\Git\home\.bashrc" "${DATA}\Git\home"
+			${EndIf}
+		${EndIf}
+		${If} ${FileExists} "$GitDir\post-install.bat"
+			; Portable Git post installation
+			; Cmd crazily remove quotes so nesting it will be needed
+			nsExec::Exec '"$CmdPath" /C ""$GitDir\post-install.bat""'
+		${EndIf}
+		; Initial value to be added to "PATH"
+		StrCpy "$ExtraPath" "$GitDir\bin;$GitDir\cmd"
+	${EndIf}
+    ; Python
+	${ConfigReads} `${CONFIG}` PYTHON= $PythonDir
+	ExpandEnvStrings "$PythonDir" "$PythonDir"
+	${If} ${FileExists} "$PythonDir\python.exe"
+        ${ConfigReads} `${CONFIG}` PythonUserPath= $PythonUser
+		${If} "$PythonUser" == "true"
+			; Change Python user's base directory (the default is "%AppData%\Python")
+			; Will not affect globally installed packages (local user packages only)
+			${SetEnvironmentVariablesPath} "PYTHONUSERBASE" "${DATA}\Python"
+		${EndIf}
+		; Get user "scripts" directory and add it to "PATH"
+		nsExec::ExecToStack '"$PythonDir\python.exe" -m site --user-site'
+		Pop $R1
+		${If} $R1 == 0
+			Pop $R2
+			${GetParent} $R2 $R2
+			StrCpy "$ExtraPath" "$ExtraPath;$PythonDir;$PythonDir\scripts;$R2\scripts"
+		${Else}
+			StrCpy "$ExtraPath" "$ExtraPath;$PythonDir;$PythonDir\scripts"
+		${EndIf}
+		ExpandEnvStrings "$PythonPath" "%PYTHONPATH%"
+		${If} "$PythonPath" == ""
+			StrCpy "$PythonPath" "$PythonDir\lib;$PythonDir\dlls"
+		${Else}
+			StrCpy "$PythonPath" "$PythonDir\lib;$PythonDir\dlls;$PythonPath"
+		${EndIf}
+	${EndIf}
+    ; Node.js
+	${ConfigReads} `${CONFIG}` NODEJS= $NodeJSDir
+	ExpandEnvStrings "$NodeJSDir" "$NodeJSDir"
+	${If} ${FileExists} "$NodeJSDir\node.exe"
+		${ConfigReads} `${CONFIG}` NodePrefixPath= $NodePrefix
+		${If} "$NodePrefix" == "true"
+			; Force change Node.js user's prefix and cache path
+			; If not changed, the default is "%AppData%\npm" and "%AppData%\npm-cache"
+			; May be dangerous on shared computer, as it will write its config to "%UserProfile%\.npmrc"
+			nsExec::Exec '"$CmdPath" /C ""$NodeJSDir\npm.cmd" config set prefix "${DATA}\Node.js\npm""'
+			nsExec::Exec '"$CmdPath" /C ""$NodeJSDir\npm.cmd" config set cache "${DATA}\Node.js\npm-cache""'
+		${EndIf}
+		; Get prefix directory and add it to "PATH"
+		nsExec::ExecToStack '"$CmdPath" /C ""$NodeJSDir\npm.cmd" config get prefix"'
+		Pop $R1
+		${If} $R1 == 0
+			Pop $R2
+			; Trim trailing newline from npm output
+			; This will break cmd if left untouched
+			${TrimNewLines} $R2 $R2
+			StrCpy "$ExtraPath" "$ExtraPath;$NodeJSDir;$R2"
+		${Else}
+			StrCpy "$ExtraPath" "$ExtraPath;$NodeJSDir"
+		${EndIf}
+	${EndIf}
+	; Add environments with the %PATH%
+	; This %PATH% will only be used by VSCode Portable
+	StrLen $R1 "$ExtraPath_$BasePath_"
+	IntOp $R1 $R1 * ${NSIS_CHAR_SIZE}
+	${If} $R1 < ${NSIS_MAX_STRLEN}
+		${SetEnvironmentVariablesPath} "PATH" "$ExtraPath;$BasePath"
+	${Else}
+		MessageBox MB_OK|MB_ICONEXCLAMATION `$(PATH)`
+	${EndIf}
+	; Set or modify "PYTHONPATH"
+	${SetEnvironmentVariablesPath} "PYTHONPATH" "$PythonPath"
+	; On first initial launch, Install any  VSIX files to the 
+	; extensions folder if the user configuration premits it
+	${ConfigReads} `${CONFIG}` InstallVSIX= $0
+	${If} $0 == true
+        ${IfNot} ${FileExists} "${DATA}\code\extensions\*.*"
+            FindFirst $R1 $R2 "${DEFDATA}\extensions\*.vsix"
+            _CHECKVSIX:
+            ${If} $R2 != ""
+                MessageBox MB_YESNO|MB_ICONQUESTION `$(VSIX)` IDNO +2
+                ExecWait '"$CmdPath" /C ""$EXEDIR\App\${APP}\bin\code.cmd" --install-extension "${DEFDATA}\extensions\$R2""'
+                FindNext $R1 $R2
+                Goto _CHECKVSIX
+            ${EndIf}
+            FindClose $R1
+        ${EndIf}
+    ${EndIf}
 !macroend
 ${SegmentPostPrimary}
 	${File::RestoreLocal} `${SND}`

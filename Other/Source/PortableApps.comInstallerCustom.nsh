@@ -2,6 +2,7 @@
 ;= VARIABLES
 ;= ################
 Var Developer
+Var InstalledVersion
 Var PortableVersion
 Var ProgramVersion
 
@@ -21,6 +22,22 @@ Var ProgramVersion
 		DetailPrint "${APP} Portable is already installed.."
 		DetailPrint "Checking if ${APP} was created by a different developer.."
 		ReadINIStr $0 "$INSTDIR\App\AppInfo\appinfo.ini" Team Developer
+        ${If} "$0" == "daemon.devin"
+                GetDllVersion "$INSTDIR\App\${APP}\code.exe" $R0 $R1
+                IntOp $R2 $R0 / 0x00010000
+                IntOp $R3 $R0 & 0x0000FFFF
+                IntOp $R4 $R1 / 0x00010000
+                IntOp $R5 $R1 & 0x0000FFFF
+                StrCpy $InstalledVersion "$R2.$R3.$R4.$R5"
+                ReadINIStr $PortableVersion "$INSTDIR\App\AppInfo\appinfo.ini" Version PackageVersion
+                ${VersionCompare} $PortableVersion $ProgramVersion $0
+                ${If} $0 == 2
+                    DetailPrint "${APP} Portable is already the latest version.."
+                    DetailPrint "Exiting current install process.."
+                    Call .onInstFailed
+                    Quit
+                ${EndIf}
+        ${EndIf}
 		${IfNot} ${Errors}
 		${AndIfNot} "$0" == "daemon.devin"
 			${If} "$0" == ""
@@ -54,7 +71,7 @@ Var ProgramVersion
 ;= POST INSTALL 
 ;= ################
 !macro CustomCodePostInstall
-    Rename "$INSTDIR\App\VSCode-win32-ia32" "$INSTDIR\App\${APP}"
+    Rename "$INSTDIR\App\VSCode-win32-x64" "$INSTDIR\App\${APP}"
 	IfFileExists "$INSTDIR\${PORTABLE}.ini" +2
 	CopyFiles /SILENT "$INSTDIR\Other\Source\${PORTABLE}.ini" "$INSTDIR"
     GetDllVersion "$INSTDIR\App\${APP}\code.exe" $R0 $R1

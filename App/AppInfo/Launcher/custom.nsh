@@ -8,6 +8,9 @@
 ;= ################
 Var LocalVersion
 Var RemoteVersion
+Var DownloadURL
+Var UpdateAvailable
+Var ErrorReason
 Var BasePath
 Var ExtraPath
 Var CmdPath
@@ -29,7 +32,7 @@ Var NodePrefix
 !define cURLP       `$PLUGINSDIR\curl.exe`
 !define cURLS		`$SYSDIR\curl.exe`
 !define jq      	`$PLUGINSDIR\jq.exe`
-!define 7z      	`$PLUGINSDIR\7z.exe`
+!define 7za      	`$PLUGINSDIR\7za.exe`
 !define _           `${PAF}\Keys`
 !define CL          SOFTWARE\Classes
 !define CLS         HKLM\${CL}
@@ -37,7 +40,7 @@ Var NodePrefix
 !define EX          SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FileExts
 !define EXTS        HKCU\Software\Microsoft\Windows\Roaming\OpenWith\FileExts
 !define EXT         HKCU\${EX}
-!define EXE         `${APPDIR}\${APP}.exe`
+!define EXE         `${APPDIR}\Code.exe`
 !define SND         `$SENDTO\${APP}.lnk`
 
 ;= LANGUAGE
@@ -74,14 +77,14 @@ LangString VSIX     ${LANG_ITALIAN}         `Installare "$R2"?$\r$\n$\r$\nL'inst
 LangString VSIX     ${LANG_JAPANESE}        `「$R2」をインストールしますか?$\r$\n$\r$\nインストールにはしばらく時間がかかる場合がありますので、しばらくお待ちください。`
 LangString VSIX     ${LANG_PORTUGUESEBR}    `Instalar "$R2"?$\r$\n$\r$\nA instalação pode demorar um pouco, então seja paciente.`
 LangString VSIX     ${LANG_SPANISH}         `¿Instalar "$R2"?$\r$\n$\r$\nLa instalación puede tardar un poco, así que tenga paciencia.`
-LangString FAILED   ${LANG_ENGLISH}         `Update check failed!$\r$\n$\r$\nYou need to update ${PORTABLEAPPNAME} manually.`
-LangString FAILED   ${LANG_SIMPCHINESE}     `??????!$\r$\n$\r$\n???????${PORTABLEAPPNAME}?`
-LangString FAILED   ${LANG_FRENCH}          `�chec de la v�rification de la mise � jour�!$\r$\n$\r$\nVous devez mettre � jour ${PORTABLEAPPNAME} manuellement.`
-LangString FAILED   ${LANG_GERMAN}          `Aktualisierungspr�fung fehlgeschlagen!$\r$\n$\r$\nSie m�ssen ${PORTABLEAPPNAME} manuell aktualisieren.`
-LangString FAILED   ${LANG_ITALIAN}         `Controllo aggiornamento fallito!$\r$\n$\r$\nDevi aggiornare ${PORTABLEAPPNAME} manualmente.`
-LangString FAILED   ${LANG_JAPANESE}        `?????????????!$\r$\n$\r$\n${PORTABLEAPPNAME} ????????????????`
-LangString FAILED   ${LANG_PORTUGUESEBR}    `Falha na verifica��o de atualiza��o!$\r$\n$\r$\nVoc� precisa atualizar ${PORTABLEAPPNAME} manualmente.`
-LangString FAILED   ${LANG_SPANISH}         `�Error en la verificaci�n de actualizaci�n!$\r$\n$\r$\nNecesitas actualizar ${PORTABLEAPPNAME} manualmente.`
+LangString FAILED   ${LANG_ENGLISH}         `Update check failed! $ErrorReason$\r$\n$\r$\nYou need to update ${PORTABLEAPPNAME} manually.`
+LangString FAILED   ${LANG_SIMPCHINESE}     `??????! $ErrorReason$\r$\n$\r$\n???????${PORTABLEAPPNAME}?`
+LangString FAILED   ${LANG_FRENCH}          `�chec de la v�rification de la mise � jour�! $ErrorReason$\r$\n$\r$\nVous devez mettre � jour ${PORTABLEAPPNAME} manuellement.`
+LangString FAILED   ${LANG_GERMAN}          `Aktualisierungspr�fung fehlgeschlagen! $ErrorReason$\r$\n$\r$\nSie m�ssen ${PORTABLEAPPNAME} manuell aktualisieren.`
+LangString FAILED   ${LANG_ITALIAN}         `Controllo aggiornamento fallito! $ErrorReason$\r$\n$\r$\nDevi aggiornare ${PORTABLEAPPNAME} manualmente.`
+LangString FAILED   ${LANG_JAPANESE}        `?????????????! $ErrorReason$\r$\n$\r$\n${PORTABLEAPPNAME} ????????????????`
+LangString FAILED   ${LANG_PORTUGUESEBR}    `Falha na verifica��o de atualiza��o! $ErrorReason$\r$\n$\r$\nVoc� precisa atualizar ${PORTABLEAPPNAME} manualmente.`
+LangString FAILED   ${LANG_SPANISH}         `�Error en la verificaci�n de actualizaci�n! $ErrorReason$\r$\n$\r$\nNecesitas actualizar ${PORTABLEAPPNAME} manualmente.`
 LangString UPDATE   ${LANG_ENGLISH}         `A new version of ${FULLNAME} is available!$\r$\n$\r$\nDo you want to update now?`
 LangString UPDATE   ${LANG_SIMPCHINESE}     `${FULLNAME} ??????!$\r$\n$\r$\n????????`
 LangString UPDATE   ${LANG_FRENCH}          `Une nouvelle version de ${FULLNAME} est disponible�!$\r$\n$\r$\nVoulez-vous mettre � jour maintenant�?`
@@ -120,9 +123,104 @@ LangString UPDATING ${LANG_SPANISH}         `Actualizando ${APP}. Casi termino..
 
 ;= MACROS
 ;= ################
+!define StrLoc "!insertmacro StrLoc"
+!macro StrLoc ResultVar String SubString StartPoint
+  Push "${String}"
+  Push "${SubString}"
+  Push "${StartPoint}"
+  Call StrLoc
+  Pop "${ResultVar}"
+!macroend
+!define UpdateFailed "!insertmacro _UpdateFailed"
+!macro _UpdateFailed _REASON
+    StrCpy $ErrorReason `${_REASON}`
+    Goto _FAILED
+!macroend
+!define CompareVersions "!insertmacro _CompareVersions"
+!macro _CompareVersions resultVar v1 v2
+
+    Push `${v1}`
+    Push `${v2}`
+    Push 0
+    StrCpy ${resultVar} 0
+
+    ${Do}
+        Pop $0 ; comparison result so far
+        Pop $2 ; v2
+        Pop $1 ; v1
+
+        ; Extract next parts
+        ${GetToken} "$1" "." $3 $1
+        ${GetToken} "$2" "." $4 $2
+
+        StrCmp $3 "" 0 +2
+        StrCpy $3 0
+        StrCmp $4 "" 0 +2
+        StrCpy $4 0
+
+        IntCmp $3 $4 0 +3 +6
+            StrCpy ${resultVar} 1
+            ${ExitDo}
+        IntCmp $4 $3 0 +3 +6
+            StrCpy ${resultVar} -1
+            ${ExitDo}
+
+        ; Both empty? Done
+        StrCmp $1 "" 0 +2
+        StrCmp $2 "" 0 +2
+            ${ExitDo}
+
+        Push $1
+        Push $2
+        Push $0
+    ${Loop}
+!macroend
+!define GetToken "!insertmacro _GetToken"
+!macro _GetToken input sep before after
+    Push ${input}
+    Push ${sep}
+    Call GetToken
+    Pop ${before}
+    Pop ${after}
+!macroend
 
 ;= FUNCTIONS
 ;= ################
+Function GetToken
+    Exch $0    ; $0 = separator
+    Exch
+    Exch $1    ; $1 = string
+    Push $2
+
+    StrCpy $2 ""
+    StrCpy $3 ""
+
+loop:
+    StrCpy $2 $1 1
+    StrCmp $2 "" done
+    StrCmp $2 $0 found
+    StrCpy $3 "$3$2"
+    StrCpy $1 $1 "" 1
+    Goto loop
+
+found:
+    StrCpy $1 $1 "" 1
+    Goto end
+
+done:
+    StrCpy $1 ""
+
+end:
+    ; return values on stack
+    ; top    = after
+    ; second = before
+    Push $3   ; before
+    Push $1   ; after
+    Exch 2
+    Pop $2
+    Pop $0
+    Pop $1
+FunctionEnd
 Function GetIconIndex
 	!macro _GetIconIndex _TYPE
 		Push ${_TYPE}
@@ -251,6 +349,10 @@ ${Segment.OnInit}
 	Call Unload
 	Quit
 !macroend
+!macro Variables
+    StrCpy $UpdateAvailable "false"
+    StrCpy $ErrorReason ""
+!macroend
 !macro OS
 	${If} ${IsNT}
 		${IfNot} ${AtLeastWin7}
@@ -265,34 +367,16 @@ ${Segment.OnInit}
 	${EndIf}
 !macroend
 !macro Init
-    ExpandEnvStrings "$CmdPath" "%COMSPEC%"
-	${ConfigReads} `${CONFIG}` Banner= $0
-	StrCmpS $0 true 0 +6
-	Banner::show ""
-	Banner::getWindow
-	Pop $0
-	GetDlgItem $0 $0 1030
-	SendMessage $0 ${WM_SETTEXT} 0 "STR:$(i)"
-	${Init::File} code\User settings.json
-	${Init::File} Fonts .Portable.Fonts.txt
-!macroend
-${SegmentPre}
-    ;=# 
-    ;= TODO :
-    ; Rewrite this functionality as it's own
-    ; segment in PortableApps Compiler allowing
-    ; the launcher to check for a new version
-    ; of the app by means of custom code.
-    ;= NOTE : 
-    ; This is extremely experimental! Meaning
-    ; this will have bugs. If you find yourself
-    ; stepping on a bug, please let me know. So
-    ; forgive me as I'm rusty.
-    ;= THNX :
-    ;=#
-	${ConfigReads} `${CONFIG}` UpdateCheck= $0
-	StrCmpS $0 true 0 _FINISHED
-    ${ReadAppInfoConfig} $LocalVersion "Version" "DisplayVersion"
+    ${ConfigReads} `${CONFIG}` UpdateCheck= $0
+    StrCmpS $0 true 0 _FINISHED
+    
+    GetDllVersion `${EXE}` $R0 $R1
+    IntOp $R2 $R0 / 0x00010000
+    IntOp $R3 $R0 & 0x0000FFFF
+    IntOp $R4 $R1 / 0x00010000
+    IntOp $R5 $R1 & 0x0000FFFF
+    StrCpy $LocalVersion "$R2.$R3.$R4.$R5"
+    
     File /oname=${jq} Contrib\bin\jq.exe
     ${If} ${AtLeastWin10}
         nsExec::ExecToStack `cmd /C "${cURLS} --no-progress-meter ${URL} | ${jq} -r .name"`
@@ -303,30 +387,31 @@ ${SegmentPre}
 	Pop $0
 	Pop $1
 	${TRIM} $2 $1
-    StrCpy $RemoteVersion $2
-    StrCmp $LocalVersion $RemoteVersion _MATCH _DIFFER
-    _MATCH:
-        Goto _FINISHED
-        
-    _FAILED:
-        MessageBox MB_ICONSTOP|MB_TOPMOST `$(FAILED)`
-        IfFileExists `$EXEDIR\App\${APP}` 0 +2
-        RMDir /r `$EXEDIR\App\${APP}`
-        IfFileExists `$EXEDIR\App\${APP}-backup\*.*` 0 +2
-        Rename "$EXEDIR\App\${APP}-backup" "$EXEDIR\App\${APP}"
-        Goto _FINISHED
-        
-    _DIFFER:
-        MessageBox MB_USERICON|MB_YESNO|MB_TOPMOST `$(UPDATE)` IDYES _UPDATE IDNO _FINISHED
+    StrCpy $RemoteVersion "$2.0"
 
-    _UPDATE:    
+    ${If} $RemoteVersion == ""
+        ${UpdateFailed} "Couldn't retrieve latest version information"
+    ${EndIf}
+
+    ${CompareVersions} $R0 $LocalVersion $RemoteVersion
+    
+    ${If} $R0 == -1
+        StrCpy $UpdateAvailable "true"
+    ${EndIf}
+
+    ${If} $UpdateAvailable == "false"
+        Goto _FINISHED
+    ${EndIf}
+
+    MessageBox MB_USERICON|MB_YESNO|MB_TOPMOST `$(UPDATE)` IDYES _UPDATE IDNO _FINISHED
+
+    _UPDATE:
         Banner::show ""
         Banner::getWindow
         Pop $0
         GetDlgItem $0 $0 1030
         SendMessage $0 ${WM_SETTEXT} 0 "STR:$(DOWNLOAD)"
-        Push $0
-        Push $1
+
         ${If} ${AtLeastWin10}
             nsExec::ExecToStack `${cURLS} --no-progress-meter -L --output-dir "$EXEDIR" -o "${ZIP}" "${DOWNLOAD}"`
         ${Else}
@@ -335,34 +420,54 @@ ${SegmentPre}
         Pop $0
         Pop $1
         Banner::destroy
-        Sleep 1000
-        ${If} ${FileExists} "${VSZIP}"
-            Banner::show ""
-            Banner::getWindow
-            Pop $0
-            GetDlgItem $0 $0 1030
-            SendMessage $0 ${WM_SETTEXT} 0 "STR:$(UPDATING)"
-            ClearErrors
-            Rename "$EXEDIR\App\${APP}" "$EXEDIR\App\${APP}-backup"
-            Sleep 500
-            CreateDirectory "$EXEDIR\App\${APP}"
-            File /oname=${7z} Contrib\bin\7z.exe
-            nsExec::Exec `cmd /C "${7z} x ${VSZIP} -aoa -o$EXEDIR\App\${APP}"`
-            Pop $0
-            Banner::destroy
-            ${If} $0 == 0
-                ${WriteAppInfoConfig} "Version" "DisplayVersion" "$RemoteVersion"
-                ${WriteAppInfoConfig} "Version" "PackageVersion" "$RemoteVersion.0"
-                MessageBox MB_ICONINFORMATION|MB_TOPMOST `$(FINISHED)`
-                Delete "${VSZIP}"
-                Goto _FINISHED
-            ${Else}
-                Goto _FAILED
-            ${EndIf}
-        ${Else}
-            Goto _FAILED
+        
+        ${IfNot} ${FileExists} `${VSZIP}`
+            ${UpdateFailed} "Downloaded archive not found"
         ${EndIf}
+
+        Rename `${APPDIR}` `${APPDIR}-backup`
+        CreateDirectory `${APPDIR}`
+
+        Banner::show ""
+        Banner::getWindow
+        Pop $0
+        GetDlgItem $0 $0 1030
+        SendMessage $0 ${WM_SETTEXT} 0 "STR:$(UPDATING)"
+        
+        File /oname=${7za} Contrib\bin\7za.exe
+        nsExec::Exec `cmd /C "${7za} x ${VSZIP} -aoa -o${APPDIR}"`
+        Pop $0
+        ${If} $0 != 0
+            ${UpdateFailed} "Extraction failed with code: $0"
+        ${EndIf}
+        
+        Banner::destroy
+
+        ${WriteAppInfoConfig} "Version" "DisplayVersion" "$RemoteVersion"
+        ${WriteAppInfoConfig} "Version" "PackageVersion" "$RemoteVersion.0"
+        MessageBox MB_ICONINFORMATION|MB_TOPMOST `$(FINISHED)`
+
+        Delete `${VSZIP}`
+        Goto _FINISHED
+
+    _FAILED:
+        MessageBox MB_ICONSTOP|MB_TOPMOST `$(FAILED)`
+        ${If} ${DirExists} `${APPDIR}-backup`
+            RMDir /r `${APPDIR}`
+            Rename `${APPDIR}-backup` `${APPDIR}`
+        ${EndIf}
+
     _FINISHED:
+    ExpandEnvStrings "$CmdPath" "%COMSPEC%"
+	${ConfigReads} `${CONFIG}` Banner= $0
+	StrCmpS $0 true 0 +6
+	Banner::show ""
+	Banner::getWindow
+	Pop $0
+	GetDlgItem $0 $0 1030
+	SendMessage $0 ${WM_SETTEXT} 0 "STR:$(i)"
+	${Init::File} code\User settings.json
+	${Init::File} Fonts .Portable.Fonts.txt
 !macroend
 ${SegmentPrePrimary}
     ${File::BackupLocal} `${SND}`
@@ -384,13 +489,13 @@ ${SegmentPrePrimary}
 	${If} ${FileExists} "$GitDir\cmd\git.exe"
 		${ConfigReads} `${CONFIG}` GitHomePath= $GitHome
 		${If} "$GitHome" == "true"
-			CreateDirectory "${DATA}\Git\home"
+			CreateDirectory `${DATA}\Git\home`
 			; If not set, the default is "%UserProfile%"
-			${SetEnvironmentVariablesPath} "HOME" "${DATA}\Git\home"
+			${SetEnvironmentVariablesPath} "HOME" `${DATA}\Git\home`
 			; Also copy custom shell config files on first run (contains workaround for "cd" command)
 			; These files may be overwritten by Oh My Zsh, so you may need to re-add the "cd" alias manually
-			${IfNot} ${FileExists} "${DATA}\Git\home\.bashrc"
-				CopyFiles /Silent "${DEFDATA}\Git\home\.bashrc" "${DATA}\Git\home"
+			${IfNot} ${FileExists} `${DATA}\Git\home\.bashrc`
+				CopyFiles /Silent `${DEFDATA}\Git\home\.bashrc` `${DATA}\Git\home`
 			${EndIf}
 		${EndIf}
 		${If} ${FileExists} "$GitDir\post-install.bat"
@@ -409,7 +514,7 @@ ${SegmentPrePrimary}
 		${If} "$PythonUser" == "true"
 			; Change Python user's base directory (the default is "%AppData%\Python")
 			; Will not affect globally installed packages (local user packages only)
-			${SetEnvironmentVariablesPath} "PYTHONUSERBASE" "${DATA}\Python"
+			${SetEnvironmentVariablesPath} "PYTHONUSERBASE" `${DATA}\Python`
 		${EndIf}
 		; Get user "scripts" directory and add it to "PATH"
 		nsExec::ExecToStack '"$PythonDir\python.exe" -m site --user-site'
@@ -437,8 +542,8 @@ ${SegmentPrePrimary}
 			; Force change Node.js user's prefix and cache path
 			; If not changed, the default is "%AppData%\npm" and "%AppData%\npm-cache"
 			; May be dangerous on shared computer, as it will write its config to "%UserProfile%\.npmrc"
-			nsExec::Exec '"$CmdPath" /C ""$NodeJSDir\npm.cmd" config set prefix "${DATA}\Node.js\npm""'
-			nsExec::Exec '"$CmdPath" /C ""$NodeJSDir\npm.cmd" config set cache "${DATA}\Node.js\npm-cache""'
+			nsExec::Exec '"$CmdPath" /C ""$NodeJSDir\npm.cmd" config set prefix `${DATA}\Node.js\npm`"'
+			nsExec::Exec '"$CmdPath" /C ""$NodeJSDir\npm.cmd" config set cache `${DATA}\Node.js\npm-cache`"'
 		${EndIf}
 		; Get prefix directory and add it to "PATH"
 		nsExec::ExecToStack '"$CmdPath" /C ""$NodeJSDir\npm.cmd" config get prefix"'
@@ -468,12 +573,12 @@ ${SegmentPrePrimary}
 	; extensions folder if the user configuration premits it
 	${ConfigReads} `${CONFIG}` InstallVSIX= $0
 	${If} $0 == true
-        ${IfNot} ${FileExists} "${DATA}\code\extensions\*.*"
-            FindFirst $R1 $R2 "${DEFDATA}\extensions\*.vsix"
+        ${IfNot} ${FileExists} `${DATA}\code\extensions\*.*`
+            FindFirst $R1 $R2 `${DEFDATA}\code\extensions\*.vsix`
             _CHECKVSIX:
             ${If} $R2 != ""
                 MessageBox MB_YESNO|MB_ICONQUESTION `$(VSIX)` IDNO +2
-                ExecWait '"$CmdPath" /C ""$EXEDIR\App\${APP}\bin\code.cmd" --install-extension "${DEFDATA}\extensions\$R2""'
+                ExecWait '"$CmdPath" /C "`${APPDIR}\bin\code.cmd` --install-extension `${DEFDATA}\code\extensions\$R2`"'
                 FindNext $R1 $R2
                 Goto _CHECKVSIX
             ${EndIf}

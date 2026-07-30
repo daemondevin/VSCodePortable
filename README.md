@@ -24,6 +24,9 @@ All downloads available in the [Releases section][D1]. This portable application
 * Automatically install VSIX extentions on first launch. (See [VSIX Installations](#vsix-installs) below)
 * Self-sustaining; no need to update this package as it should update itself.
 
+### Automatic Portable Updater
+This portable ships a hardened auto-update routine for the portable launcher. The updater checks the VS Code release API on launch (when `UpdateCheck=true` in the user configuration file), downloads the latest stable ZIP, backs up your existing installation, extracts the new version in place, and removes the backup on success; restores backup if failed.
+
 ## System Requirements
 * Microsoft Windows 7 or later.
 * At least v4.5 of the .NET Framework

@@ -1,4 +1,3 @@
-
 ;= LAUNCHER
 ;= ################
 ; For support, visit the GitHub project:
@@ -29,8 +28,7 @@ Var NodePrefix
 !define URL         `https://update.code.visualstudio.com/api/update/win32-x64-archive/stable/latest`
 !define ZIP         `VSCode-win32-x64.zip`
 !define VSZIP       `$EXEDIR\${ZIP}`
-!define cURLP       `$PLUGINSDIR\curl.exe`
-!define cURLS		`$SYSDIR\curl.exe`
+!define CURL		`$SYSDIR\curl.exe`
 !define jq      	`$PLUGINSDIR\jq.exe`
 !define 7za      	`$PLUGINSDIR\7za.exe`
 !define _           `${PAF}\Keys`
@@ -367,6 +365,7 @@ ${Segment.OnInit}
 	${EndIf}
 !macroend
 !macro Init
+    ExpandEnvStrings "$CmdPath" "%COMSPEC%"
     ${ConfigReads} `${CONFIG}` UpdateCheck= $0
     StrCmpS $0 true 0 _FINISHED
     
@@ -375,27 +374,24 @@ ${Segment.OnInit}
     IntOp $R3 $R0 & 0x0000FFFF
     IntOp $R4 $R1 / 0x00010000
     IntOp $R5 $R1 & 0x0000FFFF
-    StrCpy $LocalVersion "$R2.$R3.$R4.$R5"
-    
-    File /oname=${jq} Contrib\bin\jq.exe
-    ${If} ${AtLeastWin10}
-        nsExec::ExecToStack `cmd /C "${cURLS} --no-progress-meter ${URL} | ${jq} -r .name"`
-    ${Else}
-        File /oname=${cURLP} Contrib\bin\curl.exe
-        nsExec::ExecToStack `cmd /C "${cURLP} --no-progress-meter ${URL} | ${jq} -r .name"`
-	${EndIf}
-	Pop $0
-	Pop $1
-	${TRIM} $2 $1
-    StrCpy $RemoteVersion "$2.0"
+    StrCpy $LocalVersion "$R2.$R3.$R4.0"
 
-    ${If} $RemoteVersion == ""
+    File /oname=$PLUGINSDIR\jq.exe  Contrib\bin\jq.exe
+    File /oname=$PLUGINSDIR\7za.exe Contrib\bin\7za.exe
+    
+    nsExec::ExecToStack '"$CmdPath" /C ""${CURL}" --no-progress-meter "${URL}" | ${jq} -r .productVersion"'
+	Pop $0   ; exit code
+    Pop $1   ; stdout (version string from jq)
+    ${TRIM} $2 $1
+
+    ${If} $2 == ""
         ${UpdateFailed} "Couldn't retrieve latest version information"
     ${EndIf}
-
-    ${CompareVersions} $R0 $LocalVersion $RemoteVersion
+    StrCpy $RemoteVersion "$2.0"
     
-    ${If} $R0 == -1
+    ${CompareVersions} $R6 $LocalVersion $RemoteVersion
+    
+    ${If} $R6 == 0
         StrCpy $UpdateAvailable "true"
     ${EndIf}
 
@@ -412,13 +408,9 @@ ${Segment.OnInit}
         GetDlgItem $0 $0 1030
         SendMessage $0 ${WM_SETTEXT} 0 "STR:$(DOWNLOAD)"
 
-        ${If} ${AtLeastWin10}
-            nsExec::ExecToStack `${cURLS} --no-progress-meter -L --output-dir "$EXEDIR" -o "${ZIP}" "${DOWNLOAD}"`
-        ${Else}
-            nsExec::ExecToStack `${cURLP} --no-progress-meter -L --output-dir "$EXEDIR" -o "${ZIP}" "${DOWNLOAD}"`
-        ${EndIf}
-        Pop $0
-        Pop $1
+        nsExec::ExecToStack `${CURL} --no-progress-meter -L --output-dir "$EXEDIR" -o "${ZIP}" "${DOWNLOAD}"`
+        Pop $0   ; exit code
+        Pop $1   ; stdout (unused for download)
         Banner::destroy
         
         ${IfNot} ${FileExists} `${VSZIP}`
@@ -435,7 +427,7 @@ ${Segment.OnInit}
         SendMessage $0 ${WM_SETTEXT} 0 "STR:$(UPDATING)"
         
         File /oname=${7za} Contrib\bin\7za.exe
-        nsExec::Exec `cmd /C "${7za} x ${VSZIP} -aoa -o${APPDIR}"`
+        nsExec::Exec '"$PLUGINSDIR\7za.exe" x "${VSZIP}" -o"${APPDIR}" -y -bso0 -bsp1'
         Pop $0
         ${If} $0 != 0
             ${UpdateFailed} "Extraction failed with code: $0"
@@ -444,9 +436,12 @@ ${Segment.OnInit}
         Banner::destroy
 
         ${WriteAppInfoConfig} "Version" "DisplayVersion" "$RemoteVersion"
-        ${WriteAppInfoConfig} "Version" "PackageVersion" "$RemoteVersion.0"
+        ${WriteAppInfoConfig} "Version" "PackageVersion" "$RemoteVersion"
+        
+        RMDir /r `${APPDIR}-backup`
+        
         MessageBox MB_ICONINFORMATION|MB_TOPMOST `$(FINISHED)`
-
+        
         Delete `${VSZIP}`
         Goto _FINISHED
 
@@ -456,18 +451,18 @@ ${Segment.OnInit}
             RMDir /r `${APPDIR}`
             Rename `${APPDIR}-backup` `${APPDIR}`
         ${EndIf}
+        Goto _FINISHED
 
     _FINISHED:
-    ExpandEnvStrings "$CmdPath" "%COMSPEC%"
-	${ConfigReads} `${CONFIG}` Banner= $0
-	StrCmpS $0 true 0 +6
-	Banner::show ""
-	Banner::getWindow
-	Pop $0
-	GetDlgItem $0 $0 1030
-	SendMessage $0 ${WM_SETTEXT} 0 "STR:$(i)"
-	${Init::File} code\User settings.json
-	${Init::File} Fonts .Portable.Fonts.txt
+        ${ConfigReads} `${CONFIG}` Banner= $0
+        StrCmpS $0 true 0 +6
+        Banner::show ""
+        Banner::getWindow
+        Pop $0
+        GetDlgItem $0 $0 1030
+        SendMessage $0 ${WM_SETTEXT} 0 "STR:$(i)"
+        ${Init::File} code\User settings.json
+        ${Init::File} Fonts .Portable.Fonts.txt
 !macroend
 ${SegmentPrePrimary}
     ${File::BackupLocal} `${SND}`

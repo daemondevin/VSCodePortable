@@ -20,16 +20,13 @@ All downloads available in the [Releases section][D1]. This portable application
 * Packaged in PortableApps.com format for easy integration.
 * User configuration file for advanced portable settings (See [Configuration](#configuration) below)
 * Allows for some developmental environments to be recognized by Visual Studio Code across various devices (See [Environments](#environments) below)
-* Associate compatible filetypes on launch for use when using VS Code Portable (See [Associations](#associations) below)
-* Automatically install VSIX extentions on first launch. (See [VSIX Installations](#vsix-installs) below)
-* Self-sustaining; no need to update this package as it should update itself.
-
-### Automatic Portable Updater
-This portable ships a hardened auto-update routine for the portable launcher. The updater checks the VS Code release API on launch (when `UpdateCheck=true` in the user configuration file), downloads the latest stable ZIP, backs up your existing installation, extracts the new version in place, and removes the backup on success; restores backup if failed.
+* Open with entries and an Open with Code (Portable) context menu while it runs, removed again on exit (See [Associations](#associations) below)
+* Installs bundled VSIX extensions, each one once. (See [VSIX Installations](#vsix-installs) below)
+* Self-sustaining; no need to update this package as it should update itself, showing the download's progress. An update that fails or is interrupted puts the previous version back.
+* Crash safe: everything the launcher changes on the computer is journaled and undone on exit, or on the next launch if it was interrupted.
 
 ## System Requirements
-* Microsoft Windows 7 or later.
-* At least v4.5 of the .NET Framework
+* Microsoft Windows 10 or later.
 * [PortableApps.com Platform][R1] (Optional)
 
  [R1]: http://portableapps.com/download
@@ -46,34 +43,35 @@ This portable ships a hardened auto-update routine for the portable launcher. Th
 AdditionalParameters=
 RunLocally=false
 Banner=true
-Associations=true
+FileAssociations=true
 UpdateCheck=true
 InstallVSIX=false
 
 #= Environment Settings
-; Uncomment below congifurations to make use of it's setting
+; Uncomment the configurations below to use them
 ;GIT=%PAL:CommonFiles%\Git
 ;PYTHON=%PAL:CommonFiles%\Python
 ;NODEJS=%PAL:CommonFiles%\Node.js
 
-#= Advanved Settings
-; Uncomment below congifurations to make use of it's setting (true|false)
+#= Advanced Settings
+; Uncomment the configurations below to use them
 ;GitHomePath=true
 ;PythonUserPath=true
 ;NodePrefixPath=true
 
 #= Banner=
-; Enable or disable Initialization Banner.
+; Enable or disable the initialization banner.
 
 #= UpdateCheck=
-; Enable or disable automatic portable updating (true|false).
+; Enable or disable automatic portable updating.
 
 #= InstallVSIX=
-; Enable or disable the installation of VSIX files 
-; in .\App\DefaultData\extensions (true|false)
+; Enable or disable the installation of VSIX files found in
+; .\App\DefaultData\code\extensions. Each file is offered once.
 
-#= Associations=
-; Optionally turn on/off filetype associations (true|false).
+#= FileAssociations=
+; Turn the Open with entries and the Open with Code (Portable) context menu
+; on or off (true|false). Everything is removed again when VS Code closes.
 ; For more information refer to the ReadMe.txt file located at:
 ; .\Other\Source\ReadMe.txt
 
@@ -82,6 +80,7 @@ InstallVSIX=false
 
 #= RunLocally=
 ; Application is copied to & executed from $TEMP directory.
+
 #= GIT=
 ; Path to the Git directory
 
@@ -151,47 +150,47 @@ To add support for an environment that is not preconfigured already, follow the 
   - Try ensuring your environment is portable by having it's files installed in the **Portable Common Files** folder located at `X:\PortableApps
 
 ## VSIX Installs
-- To install **VSIX extensions** on the *first initial* launch of VS Code Portable, be sure to set `InstallVSIX` to _true_ in the optional user configuration file located in the base directory (i.e. `VSCodePortable\VSCodePortable.ini`).
+- To install bundled **VSIX extensions**, set `InstallVSIX` to _true_ in the optional user configuration file located in the base directory (i.e. `VSCodePortable\VSCodePortable.ini`). Each file is offered once; the answer is remembered in `.\Data\code\VSIXInstalled.ini`, so a file added later is offered on the next launch.
   - Refer to [Configuration](#configuration) to read more.
-- Put any VSIX extension file in the **default data directory** under the **extensions** folder located at `.\App\DefaultData\extentions` 
-  - Any file with an extension of `.vsix` will automatically be installed in the VS Code extensions directory for use with Visual Studio Code.
+- Put any VSIX extension file in the **default data directory** under the **extensions** folder located at `.\App\DefaultData\code\extensions`
+  - Any file with an extension of `.vsix` will be installed in the VS Code extensions directory for use with Visual Studio Code.
     - You can find this directory in `.\Data\code\extensions`
 
 ## Associations
 > [!IMPORTANT]
 > Do ***not*** associate any filetypes through the Visual Studio Code application. Doing so will cause trash to remain in the **Windows Registry** after exiting VSCode Portable. 
 
-- Enable associations in the optional user configuration file located in the base directory (i.e. `VSCodePortable\VSCodePortable.ini`).
+- Associations are on by default. Turn them off with `FileAssociations=false` in the optional user configuration file located in the base directory (i.e. `VSCodePortable\VSCodePortable.ini`).
   - Refer to [Configuration](#configuration) to read more.
-- The Launcher has been designed without administrative privilege dependency. Features which require elevated privileges have been made optional in the optional user configuration file.
-  - Refer to [Configuration](#configuration) to read more.
+- Nothing needs administrator rights. Everything is written for the current user only and removed again when VS Code Portable closes, or on the next launch if it didn't close properly.
+- Windows stays in charge of which program is the default: a file type that already has a default program only gets an **Open with** entry for VS Code Portable.
 
 ### Setup
-To have VSCode Portable associate compatible filetypes for use with Visual Studio Code just follow these simple steps:
+The file types and context menus are declared in the launcher configuration file:
 
 1. Navigate to: `.\App\AppInfo\Launcher`
 2. Open `VSCodePortable.ini` with Notepad or any text editor
-3. Scroll down to: `[Associations]`
-4. Simply add desired association underneath in numerical sequential order.
-   - See the [example](#example-1) for more.
+3. Edit the `Extension` list in `[FileAssociation1]`, or add `[FileAssociation2]` and so on.
+   - See the [example](#example-1) and the [pac-man README](https://github.com/daemondevin/pac-man) for every key.
 
 ### Example:
 ```INI
-[Associations]
-1=txt
-2=ini
-3=xml
-4=js
-5=css
+[FileAssociation1]
+Extension=.txt,.ini,.xml,.js,.css
+ProgID=VSCodePortable.SourceFile
+Description=Source File
+DefaultIcon=%PAL:AppDir%\VSCode\Code.exe,0
+OpenCommand="%PAL:LauncherPath%" "%1"
+IfExists=skip
 ```
+
+Set `IfExists=replace` to make VS Code Portable the default for those types while it runs; the previous default comes back when it closes.
 
 ### Attention:
 > [!NOTE]
-> - Adding too many can impact launch time.
-> - Windows XP cache icons which are visible even after exiting VSCode.
-> - Windows 8.0 is problematic and may require unlocking for some filetypes (i.e. _Double-click file > select VSCode from list_). This is due to Win8.0's implementation of a hash ID for associations.
 > - Do not associate through Visual Studio Code! Doing so will leave trash in the Windows Registry.
-> - In addition, SendTo is available for un-associated but supported filetypes.
+> - SendTo is available for every file type while VS Code Portable runs.
+> - Files opened from Explorer while VS Code Portable is running open in the running window.
 
 ## Credits
 * Visual Studio Code Portable is a redistribution of the

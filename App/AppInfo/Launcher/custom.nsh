@@ -1,14 +1,28 @@
-;= LAUNCHER
-;= ################
+﻿; Visual Studio Code Portable custom code for PortableApps Compiler.
 ; For support, visit the GitHub project:
 ; https://github.com/daemondevin/pac-man
+;
+; What lives here and why:
+;   Update      Optional self update of App\VSCode. Done as a journaled swap:
+;               the current version is moved aside, the new one is extracted,
+;               and only a complete new version is kept. A failure, or a crash
+;               at any point, puts the previous version back.
+;   VSCode      Journaled changes made for the session: the SendTo shortcut,
+;               the vscode:// protocol and Applications\Code.exe keys VS Code
+;               writes for itself, and LongPathsEnabled when started elevated.
+;               All of them are undone on exit, or on the next launch after a
+;               crash.
+;   Tools       Optional Git, Python and Node.js from the user configuration,
+;               put in front of PATH for VS Code only.
+;   VSIX        Optional one time installation of bundled .vsix files.
+;
+; File associations and the Open with Code (Portable) context menu are not
+; done here: they are declared in VSCodePortable.ini and handled by the
+; journaled Associations segment.
 
-;= VARIABLES
-;= ################
+; Variables
 Var LocalVersion
 Var RemoteVersion
-Var DownloadURL
-Var UpdateAvailable
 Var ErrorReason
 Var BasePath
 Var ExtraPath
@@ -20,48 +34,97 @@ Var PythonUser
 Var PythonPath
 Var NodeJSDir
 Var NodePrefix
+Var DlWindow
+Var DlLabel
+Var DlBar
+Var DlTotalKB
+Var DlProcess
+Var DlMsg
+Var DlShown
 
-;= DEFINES
-;= ################
-!define oNET        `SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full`
-!define DOWNLOAD    `https://code.visualstudio.com/sha/download?build=stable&os=win32-x64-archive`
-!define URL         `https://update.code.visualstudio.com/api/update/win32-x64-archive/stable/latest`
-!define ZIP         `VSCode-win32-x64.zip`
-!define VSZIP       `$EXEDIR\${ZIP}`
-!define CURL		`$SYSDIR\curl.exe`
-!define jq      	`$PLUGINSDIR\jq.exe`
-!define 7za      	`$PLUGINSDIR\7za.exe`
-!define _           `${PAF}\Keys`
-!define CL          SOFTWARE\Classes
-!define CLS         HKLM\${CL}
-!define ULS         HKCU\${CL}
-!define EX          SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FileExts
-!define EXTS        HKCU\Software\Microsoft\Windows\Roaming\OpenWith\FileExts
-!define EXT         HKCU\${EX}
-!define EXE         `${APPDIR}\Code.exe`
-!define SND         `$SENDTO\${APP}.lnk`
+; Defines
+!define DOWNLOAD        `https://code.visualstudio.com/sha/download?build=stable&os=win32-x64-archive`
+!define URL             `https://update.code.visualstudio.com/api/update/win32-x64-archive/stable/latest`
+!define ZIP             `VSCode-win32-x64.zip`
+!define VSZIP           `$EXEDIR\${ZIP}`
+!define CURL            `$SYSDIR\curl.exe`
+!define jq              `$PLUGINSDIR\jq.exe`
+!define 7za             `$PLUGINSDIR\7za.exe`
+!define EXE             `${APPDIR}\Code.exe`
+!define BACKUPDIR       `${APPDIR}-backup`
+!define SND             `$SENDTO\${APP}.lnk`
+!define VSIXLIST        `${DATA}\code\VSIXInstalled.ini`
+!define LONGPATHS_KEY   `SYSTEM\CurrentControlSet\Control\FileSystem`
 
-;= LANGUAGE
-;= ################
-LangString OS       ${LANG_ENGLISH}         `You must have Windows 7 or better to use ${PORTABLEAPPNAME}.$\r$\n$\r$\nAborting!`
-LangString OS       ${LANG_SIMPCHINESE}     `?????Windows 7?????????${PORTABLEAPPNAME}?$\r$\n$\r$\n??!`
-LangString OS       ${LANG_FRENCH}          `Vous devez avoir Windows 7 ou mieux pour utiliser ${PORTABLEAPPNAME}.$\r$\n$\r$\nAbandonner!`
-LangString OS       ${LANG_GERMAN}          `Sie m�ssen Windows 7 oder besser verwenden, um ${PORTABLEAPPNAME} zu verwenden.$\r$\n$\r$\nAbbrechen!`
-LangString OS       ${LANG_ITALIAN}         `Devi avere Windows 7 o meglio utilizzare ${PORTABLEAPPNAME}.$\r$\n$\r$\nInterruzione!`
-LangString OS       ${LANG_JAPANESE}        `${PORTABLEAPPNAME}????????Windows 7????????$\r$\n$\r$\n??!`
-LangString OS       ${LANG_PORTUGUESEBR}    `Voc� deve ter o Windows 7 ou superior para usar o ${PORTABLEAPPNAME}.$\r$\n$\r$\nAbortando!`
-LangString OS       ${LANG_SPANISH}         `Debes tener Windows 7 o mejor para utilizar ${PORTABLEAPPNAME}.$\r$\n$\r$\nAbortar!`
-LangString NET      ${LANG_ENGLISH}         `.NET Error:$\r$\n$\r$\nv4.5 or greater of the .NET Framework must be installed.$\r$\n$\r$\nAborting!`
-LangString NET      ${LANG_SIMPCHINESE}     `.NET??:$\r$\n$\r$\n????v4.5??????.NET Framework?$\r$\n$\r$\n??!`
-LangString NET      ${LANG_FRENCH}          `Erreur .NET:$\r$\n$\r$\nv4.5 ou plus du .NET Framework doit �tre install�.$\r$\n$\r$\nAbandonner!`
-LangString NET      ${LANG_GERMAN}          `.NET Fehler:$\r$\n$\r$\nv4.5 oder h�her von .NET Framework muss installiert sein.$\r$\n$\r$\nAbbrechen!`
-LangString NET      ${LANG_ITALIAN}         `.NET Errore:$\r$\n$\r$\nv4.5 o superiore del .NET Framework deve essere installato.$\r$\n$\r$\nInterruzione!`
-LangString NET      ${LANG_JAPANESE}        `.NET???:$\r$\n$\r$\n.NET Framework?v4.5??????????????????????$\r$\n$\r$\n??!`
-LangString NET      ${LANG_PORTUGUESEBR}    `Erro .NET:$\r$\n$\r$\nv4.5 ou superior do .NET Framework deve ser instalado.$\r$\n$\r$\nAbortando!`
-LangString NET      ${LANG_SPANISH}         `.NET Error:$\r$\n$\r$\ndebe instalarse v4.5 o superior del .NET Framework.$\r$\n$\r$\nAbortar!`
+; Language
+; The other languages the launcher loads use the English text.
+!macro _VSCode::English _NAME _TEXT
+	!ifdef LANG_ARMENIAN
+		LangString ${_NAME} ${LANG_ARMENIAN} `${_TEXT}`
+	!endif
+	!ifdef LANG_BULGARIAN
+		LangString ${_NAME} ${LANG_BULGARIAN} `${_TEXT}`
+	!endif
+	!ifdef LANG_DANISH
+		LangString ${_NAME} ${LANG_DANISH} `${_TEXT}`
+	!endif
+	!ifdef LANG_DUTCH
+		LangString ${_NAME} ${LANG_DUTCH} `${_TEXT}`
+	!endif
+	!ifdef LANG_ESTONIAN
+		LangString ${_NAME} ${LANG_ESTONIAN} `${_TEXT}`
+	!endif
+	!ifdef LANG_FINNISH
+		LangString ${_NAME} ${LANG_FINNISH} `${_TEXT}`
+	!endif
+	!ifdef LANG_GALICIAN
+		LangString ${_NAME} ${LANG_GALICIAN} `${_TEXT}`
+	!endif
+	!ifdef LANG_HEBREW
+		LangString ${_NAME} ${LANG_HEBREW} `${_TEXT}`
+	!endif
+	!ifdef LANG_HUNGARIAN
+		LangString ${_NAME} ${LANG_HUNGARIAN} `${_TEXT}`
+	!endif
+	!ifdef LANG_INDONESIAN
+		LangString ${_NAME} ${LANG_INDONESIAN} `${_TEXT}`
+	!endif
+	!ifdef LANG_POLISH
+		LangString ${_NAME} ${LANG_POLISH} `${_TEXT}`
+	!endif
+	!ifdef LANG_PORTUGUESE
+		LangString ${_NAME} ${LANG_PORTUGUESE} `${_TEXT}`
+	!endif
+	!ifdef LANG_ROMANIAN
+		LangString ${_NAME} ${LANG_ROMANIAN} `${_TEXT}`
+	!endif
+	!ifdef LANG_SLOVENIAN
+		LangString ${_NAME} ${LANG_SLOVENIAN} `${_TEXT}`
+	!endif
+	!ifdef LANG_SUNDANESE
+		LangString ${_NAME} ${LANG_SUNDANESE} `${_TEXT}`
+	!endif
+	!ifdef LANG_SWEDISH
+		LangString ${_NAME} ${LANG_SWEDISH} `${_TEXT}`
+	!endif
+	!ifdef LANG_THAI
+		LangString ${_NAME} ${LANG_THAI} `${_TEXT}`
+	!endif
+	!ifdef LANG_TRADCHINESE
+		LangString ${_NAME} ${LANG_TRADCHINESE} `${_TEXT}`
+	!endif
+	!ifdef LANG_TURKISH
+		LangString ${_NAME} ${LANG_TURKISH} `${_TEXT}`
+	!endif
+	!ifdef LANG_VIETNAMESE
+		LangString ${_NAME} ${LANG_VIETNAMESE} `${_TEXT}`
+	!endif
+!macroend
+!define VSCode::English "!insertmacro _VSCode::English"
+
 LangString PATH     ${LANG_ENGLISH}         `The "PATH" environment variable is too long!$\r$\n$\r$\nUsing the default setting.`
 LangString PATH     ${LANG_SIMPCHINESE}     `“PATH”环境变量太长！$\r$\n$\r$\n使用默认设置。`
-LangString PATH     ${LANG_FRENCH}          `La variable d'environnement « PATH » est trop longue !$\r$\n$\r$\nUtilisation du paramètre par défaut.`
+LangString PATH     ${LANG_FRENCH}          `La variable d'environnement « PATH » est trop longue !$\r$\n$\r$\nUtilisation du paramètre par défaut.`
 LangString PATH     ${LANG_GERMAN}          `Die Umgebungsvariable „PATH“ ist zu lang!$\r$\n$\r$\nVerwende die Standardeinstellung.`
 LangString PATH     ${LANG_ITALIAN}         `La variabile d'ambiente "PATH" è troppo lunga!$\r$\n$\r$\nSi utilizza l'impostazione predefinita.`
 LangString PATH     ${LANG_JAPANESE}        `"PATH" 環境変数が長すぎます!$\r$\n$\r$\nデフォルト設定を使用します。`
@@ -69,36 +132,36 @@ LangString PATH     ${LANG_PORTUGUESEBR}    `A variável de ambiente "PATH" é m
 LangString PATH     ${LANG_SPANISH}         `¡La variable de entorno "PATH" es demasiado larga!$\r$\n$\r$\nUsando la configuración predeterminada.`
 LangString VSIX     ${LANG_ENGLISH}         `Install "$R2"?$\r$\n$\r$\nInstalling may take a while so please be patient.`
 LangString VSIX     ${LANG_SIMPCHINESE}     `安装“$R2”？$\r$\n$\r$\n安装可能需要一段时间，请耐心等待。`
-LangString VSIX     ${LANG_FRENCH}          `Installer « $R2 » ?$\r$\n$\r$\nL'installation peut prendre un certain temps, veuillez donc être patient.`
+LangString VSIX     ${LANG_FRENCH}          `Installer « $R2 » ?$\r$\n$\r$\nL'installation peut prendre un certain temps, veuillez donc être patient.`
 LangString VSIX     ${LANG_GERMAN}          `"$R2" installieren?$\r$\n$\r$\nDie Installation kann eine Weile dauern, haben Sie also bitte Geduld.`
 LangString VSIX     ${LANG_ITALIAN}         `Installare "$R2"?$\r$\n$\r$\nL'installazione potrebbe richiedere un po' di tempo, quindi sii paziente.`
 LangString VSIX     ${LANG_JAPANESE}        `「$R2」をインストールしますか?$\r$\n$\r$\nインストールにはしばらく時間がかかる場合がありますので、しばらくお待ちください。`
 LangString VSIX     ${LANG_PORTUGUESEBR}    `Instalar "$R2"?$\r$\n$\r$\nA instalação pode demorar um pouco, então seja paciente.`
 LangString VSIX     ${LANG_SPANISH}         `¿Instalar "$R2"?$\r$\n$\r$\nLa instalación puede tardar un poco, así que tenga paciencia.`
 LangString FAILED   ${LANG_ENGLISH}         `Update check failed! $ErrorReason$\r$\n$\r$\nYou need to update ${PORTABLEAPPNAME} manually.`
-LangString FAILED   ${LANG_SIMPCHINESE}     `??????! $ErrorReason$\r$\n$\r$\n???????${PORTABLEAPPNAME}?`
-LangString FAILED   ${LANG_FRENCH}          `�chec de la v�rification de la mise � jour�! $ErrorReason$\r$\n$\r$\nVous devez mettre � jour ${PORTABLEAPPNAME} manuellement.`
-LangString FAILED   ${LANG_GERMAN}          `Aktualisierungspr�fung fehlgeschlagen! $ErrorReason$\r$\n$\r$\nSie m�ssen ${PORTABLEAPPNAME} manuell aktualisieren.`
+LangString FAILED   ${LANG_SIMPCHINESE}     `更新检查失败！$ErrorReason$\r$\n$\r$\n您需要手动更新 ${PORTABLEAPPNAME}。`
+LangString FAILED   ${LANG_FRENCH}          `Échec de la vérification de la mise à jour ! $ErrorReason$\r$\n$\r$\nVous devez mettre à jour ${PORTABLEAPPNAME} manuellement.`
+LangString FAILED   ${LANG_GERMAN}          `Aktualisierungsprüfung fehlgeschlagen! $ErrorReason$\r$\n$\r$\nSie müssen ${PORTABLEAPPNAME} manuell aktualisieren.`
 LangString FAILED   ${LANG_ITALIAN}         `Controllo aggiornamento fallito! $ErrorReason$\r$\n$\r$\nDevi aggiornare ${PORTABLEAPPNAME} manualmente.`
-LangString FAILED   ${LANG_JAPANESE}        `?????????????! $ErrorReason$\r$\n$\r$\n${PORTABLEAPPNAME} ????????????????`
-LangString FAILED   ${LANG_PORTUGUESEBR}    `Falha na verifica��o de atualiza��o! $ErrorReason$\r$\n$\r$\nVoc� precisa atualizar ${PORTABLEAPPNAME} manualmente.`
-LangString FAILED   ${LANG_SPANISH}         `�Error en la verificaci�n de actualizaci�n! $ErrorReason$\r$\n$\r$\nNecesitas actualizar ${PORTABLEAPPNAME} manualmente.`
+LangString FAILED   ${LANG_JAPANESE}        `更新の確認に失敗しました! $ErrorReason$\r$\n$\r$\n${PORTABLEAPPNAME} を手動で更新する必要があります。`
+LangString FAILED   ${LANG_PORTUGUESEBR}    `Falha na verificação de atualização! $ErrorReason$\r$\n$\r$\nVocê precisa atualizar ${PORTABLEAPPNAME} manualmente.`
+LangString FAILED   ${LANG_SPANISH}         `¡Error en la verificación de actualización! $ErrorReason$\r$\n$\r$\nNecesitas actualizar ${PORTABLEAPPNAME} manualmente.`
 LangString UPDATE   ${LANG_ENGLISH}         `A new version of ${FULLNAME} is available!$\r$\n$\r$\nDo you want to update now?`
-LangString UPDATE   ${LANG_SIMPCHINESE}     `${FULLNAME} ??????!$\r$\n$\r$\n????????`
-LangString UPDATE   ${LANG_FRENCH}          `Une nouvelle version de ${FULLNAME} est disponible�!$\r$\n$\r$\nVoulez-vous mettre � jour maintenant�?`
-LangString UPDATE   ${LANG_GERMAN}          `Eine neue Version von ${FULLNAME} ist verf�gbar!$\r$\n$\r$\nM�chten Sie jetzt aktualisieren?`
-LangString UPDATE   ${LANG_ITALIAN}         `� disponibile una nuova versione di ${FULLNAME}!$\r$\n$\r$\nVuoi aggiornare adesso?`
-LangString UPDATE   ${LANG_JAPANESE}        `${FULLNAME} ????????????????!$\r$\n$\r$\n??????????`
-LangString UPDATE   ${LANG_PORTUGUESEBR}    `Uma nova vers�o de ${FULLNAME} est� dispon�vel!$\r$\n$\r$\nGostaria de atualizar agora?`
-LangString UPDATE   ${LANG_SPANISH}         `�Hay una nueva versi�n de ${FULLNAME} disponible!$\r$\n$\r$\n�Le gustar�a actualizar ahora?`
-LangString FINISHED ${LANG_ENGLISH}         `${FULLNAME} has been updated successfully$\r$\n$\r$\nNow launching ${PORTABLEAPPNAME}.`
-LangString FINISHED ${LANG_SIMPCHINESE}     `${FULLNAME} ?????$\r$\n$\r$\n????${PORTABLEAPPNAME}?`
-LangString FINISHED ${LANG_FRENCH}          `${FULLNAME} a �t� mis � jour avec succ�s$\r$\n$\r$\nLancement maintenant de ${PORTABLEAPPNAME}.`
-LangString FINISHED ${LANG_GERMAN}          `${FULLNAME} wurde erfolgreich aktualisiert$\r$\n$\r$\n${PORTABLEAPPNAME} wird jetzt gestartet.`
-LangString FINISHED ${LANG_ITALIAN}         `${FULLNAME} � stato aggiornato con successo$\r$\n$\r$\nAvvio di ${PORTABLEAPPNAME} in fase di avvio.`
-LangString FINISHED ${LANG_JAPANESE}        `${FULLNAME} ???????????$\r$\n$\r$\n${PORTABLEAPPNAME} ???????`
-LangString FINISHED ${LANG_PORTUGUESEBR}    `${FULLNAME} foi atualizado com sucesso$\r$\n$\r$\nAgora iniciando ${PORTABLEAPPNAME}.`
-LangString FINISHED ${LANG_SPANISH}         `${FULLNAME} se ha actualizado correctamente$\r$\n$\r$\nAhora iniciamos ${PORTABLEAPPNAME}.`
+LangString UPDATE   ${LANG_SIMPCHINESE}     `${FULLNAME} 有新版本可用！$\r$\n$\r$\n是否立即更新？`
+LangString UPDATE   ${LANG_FRENCH}          `Une nouvelle version de ${FULLNAME} est disponible !$\r$\n$\r$\nVoulez-vous mettre à jour maintenant ?`
+LangString UPDATE   ${LANG_GERMAN}          `Eine neue Version von ${FULLNAME} ist verfügbar!$\r$\n$\r$\nMöchten Sie jetzt aktualisieren?`
+LangString UPDATE   ${LANG_ITALIAN}         `È disponibile una nuova versione di ${FULLNAME}!$\r$\n$\r$\nVuoi aggiornare adesso?`
+LangString UPDATE   ${LANG_JAPANESE}        `${FULLNAME} の新しいバージョンが利用可能です!$\r$\n$\r$\n今すぐ更新しますか?`
+LangString UPDATE   ${LANG_PORTUGUESEBR}    `Uma nova versão de ${FULLNAME} está disponível!$\r$\n$\r$\nGostaria de atualizar agora?`
+LangString UPDATE   ${LANG_SPANISH}         `¡Hay una nueva versión de ${FULLNAME} disponible!$\r$\n$\r$\n¿Le gustaría actualizar ahora?`
+LangString FINISHED ${LANG_ENGLISH}         `${FULLNAME} has been updated successfully.$\r$\n$\r$\nNow launching ${PORTABLEAPPNAME}.`
+LangString FINISHED ${LANG_SIMPCHINESE}     `${FULLNAME} 已成功更新。$\r$\n$\r$\n现在启动 ${PORTABLEAPPNAME}。`
+LangString FINISHED ${LANG_FRENCH}          `${FULLNAME} a été mis à jour avec succès.$\r$\n$\r$\nLancement de ${PORTABLEAPPNAME}.`
+LangString FINISHED ${LANG_GERMAN}          `${FULLNAME} wurde erfolgreich aktualisiert.$\r$\n$\r$\n${PORTABLEAPPNAME} wird jetzt gestartet.`
+LangString FINISHED ${LANG_ITALIAN}         `${FULLNAME} è stato aggiornato con successo.$\r$\n$\r$\nAvvio di ${PORTABLEAPPNAME} in corso.`
+LangString FINISHED ${LANG_JAPANESE}        `${FULLNAME} は正常に更新されました。$\r$\n$\r$\n${PORTABLEAPPNAME} を起動します。`
+LangString FINISHED ${LANG_PORTUGUESEBR}    `${FULLNAME} foi atualizado com sucesso.$\r$\n$\r$\nAgora iniciando ${PORTABLEAPPNAME}.`
+LangString FINISHED ${LANG_SPANISH}         `${FULLNAME} se ha actualizado correctamente.$\r$\n$\r$\nAhora iniciamos ${PORTABLEAPPNAME}.`
 LangString DOWNLOAD ${LANG_ENGLISH}         `Downloading ${APP} $RemoteVersion..`
 LangString DOWNLOAD ${LANG_SIMPCHINESE}     `正在下载 ${APP} $RemoteVersion 请稍等..`
 LangString DOWNLOAD ${LANG_FRENCH}          `Téléchargement de ${APP} $RemoteVersion S'il vous plaît, attendez..`
@@ -115,643 +178,660 @@ LangString UPDATING ${LANG_ITALIAN}         `Aggiornamento di ${APP}. Quasi fatt
 LangString UPDATING ${LANG_JAPANESE}        `${APP} を更新しています。 ほぼ完了しました..`
 LangString UPDATING ${LANG_PORTUGUESEBR}    `Atualizando ${APP}. Quase pronto..`
 LangString UPDATING ${LANG_SPANISH}         `Actualizando ${APP}. Casi termino..`
+${VSCode::English} PATH `The "PATH" environment variable is too long!$\r$\n$\r$\nUsing the default setting.`
+${VSCode::English} VSIX `Install "$R2"?$\r$\n$\r$\nInstalling may take a while so please be patient.`
+${VSCode::English} FAILED `Update check failed! $ErrorReason$\r$\n$\r$\nYou need to update ${PORTABLEAPPNAME} manually.`
+${VSCode::English} UPDATE `A new version of ${FULLNAME} is available!$\r$\n$\r$\nDo you want to update now?`
+${VSCode::English} FINISHED `${FULLNAME} has been updated successfully.$\r$\n$\r$\nNow launching ${PORTABLEAPPNAME}.`
+${VSCode::English} DOWNLOAD `Downloading ${APP} $RemoteVersion..`
+${VSCode::English} UPDATING `Updating ${APP}. Almost done..`
 
-;= INCLUDES
-;= ################
+; Macros
 
-;= MACROS
-;= ################
-!define StrLoc "!insertmacro StrLoc"
-!macro StrLoc ResultVar String SubString StartPoint
-  Push "${String}"
-  Push "${SubString}"
-  Push "${StartPoint}"
-  Call StrLoc
-  Pop "${ResultVar}"
-!macroend
-!define UpdateFailed "!insertmacro _UpdateFailed"
-!macro _UpdateFailed _REASON
-    StrCpy $ErrorReason `${_REASON}`
-    Goto _FAILED
-!macroend
-!define CompareVersions "!insertmacro _CompareVersions"
-!macro _CompareVersions resultVar v1 v2
-
-    Push `${v1}`
-    Push `${v2}`
-    Push 0
-    StrCpy ${resultVar} 0
-
-    ${Do}
-        Pop $0 ; comparison result so far
-        Pop $2 ; v2
-        Pop $1 ; v1
-
-        ; Extract next parts
-        ${GetToken} "$1" "." $3 $1
-        ${GetToken} "$2" "." $4 $2
-
-        StrCmp $3 "" 0 +2
-        StrCpy $3 0
-        StrCmp $4 "" 0 +2
-        StrCpy $4 0
-
-        IntCmp $3 $4 0 +3 +6
-            StrCpy ${resultVar} 1
-            ${ExitDo}
-        IntCmp $4 $3 0 +3 +6
-            StrCpy ${resultVar} -1
-            ${ExitDo}
-
-        ; Both empty? Done
-        StrCmp $1 "" 0 +2
-        StrCmp $2 "" 0 +2
-            ${ExitDo}
-
-        Push $1
-        Push $2
-        Push $0
-    ${Loop}
-!macroend
-!define GetToken "!insertmacro _GetToken"
-!macro _GetToken input sep before after
-    Push ${input}
-    Push ${sep}
-    Call GetToken
-    Pop ${before}
-    Pop ${after}
+; Shows the banner (or changes its text) to the language string _TEXT.
+!define VSCode::Banner "!insertmacro _VSCode::Banner"
+!macro _VSCode::Banner _TEXT
+	Banner::show ""
+	Banner::getWindow
+	Pop $0
+	GetDlgItem $0 $0 1030
+	SendMessage $0 ${WM_SETTEXT} 0 "STR:${_TEXT}"
 !macroend
 
-;= FUNCTIONS
-;= ################
-Function GetToken
-    Exch $0    ; $0 = separator
-    Exch
-    Exch $1    ; $1 = string
-    Push $2
-
-    StrCpy $2 ""
-    StrCpy $3 ""
-
-loop:
-    StrCpy $2 $1 1
-    StrCmp $2 "" done
-    StrCmp $2 $0 found
-    StrCpy $3 "$3$2"
-    StrCpy $1 $1 "" 1
-    Goto loop
-
-found:
-    StrCpy $1 $1 "" 1
-    Goto end
-
-done:
-    StrCpy $1 ""
-
-end:
-    ; return values on stack
-    ; top    = after
-    ; second = before
-    Push $3   ; before
-    Push $1   ; after
-    Exch 2
-    Pop $2
-    Pop $0
-    Pop $1
-FunctionEnd
-Function GetIconIndex
-	!macro _GetIconIndex _TYPE
-		Push ${_TYPE}
-		Call GetIconIndex
-		Pop ${_TYPE}
-	!macroend
-	!define GetIconIndex "!insertmacro _GetIconIndex"
-	Exch $0
-	StrCmpS $0 log END
-	StrCmpS $0 mapimail END
-	StrCmpS $0 txt END
-	StrCmpS $0 ini END
-	StrCmpS $0 inf END
-	StrCmpS $0 h END
-	StrCmpS $0 hh END
-	StrCmpS $0 hpp END
-	StrCmpS $0 hxx END
-	StrCmpS $0 c END
-	StrCmpS $0 cpp END
-	StrCmpS $0 cxx END
-	StrCmpS $0 cc END
-	StrCmpS $0 m END
-	StrCmpS $0 mm END
-	StrCmpS $0 vcxproj END
-	StrCmpS $0 vcproj END
-	StrCmpS $0 props END
-	StrCmpS $0 vsprops END
-	StrCmpS $0 manifest END
-	StrCmpS $0 java END
-	StrCmpS $0 cs END
-	StrCmpS $0 pas END
-	StrCmpS $0 pp END
-	StrCmpS $0 inc END
-	StrCmpS $0 html END
-	StrCmpS $0 htm END
-	StrCmpS $0 shtml END
-	StrCmpS $0 shtm END
-	StrCmpS $0 hta END
-	StrCmpS $0 asp END
-	StrCmpS $0 aspx END
-	StrCmpS $0 css END
-	StrCmpS $0 js END
-	StrCmpS $0 json END
-	StrCmpS $0 jsm END
-	StrCmpS $0 jsp END
-	StrCmpS $0 php END
-	StrCmpS $0 php3 END
-	StrCmpS $0 php4 END
-	StrCmpS $0 phps END
-	StrCmpS $0 phpt END
-	StrCmpS $0 phtml END
-	StrCmpS $0 xml END
-	StrCmpS $0 xhtml END
-	StrCmpS $0 xht END
-	StrCmpS $0 sul END
-	StrCmpS $0 kml END
-	StrCmpS $0 xaml END
-	StrCmpS $0 xsml END
-	StrCmpS $0 sh END
-	StrCmpS $0 bsh END
-	StrCmpS $0 bash END
-	StrCmpS $0 bat END
-	StrCmpS $0 cmd END
-	StrCmpS $0 nsi END
-	StrCmpS $0 nsh END
-	StrCmpS $0 lua END
-	StrCmpS $0 pl END
-	StrCmpS $0 pm END
-	StrCmpS $0 py END
-	StrCmpS $0 rc END
-	StrCmpS $0 as END
-	StrCmpS $0 mx END
-	StrCmpS $0 vb END
-	StrCmpS $0 vbs END
-	StrCmpS $0 f END
-	StrCmpS $0 for END
-	StrCmpS $0 f90 END
-	StrCmpS $0 f95 END
-	StrCmpS $0 f2k END
-	StrCmpS $0 tex END
-	StrCmpS $0 sql END
-	StrCmpS $0 nfo END
-	StrCmpS $0 mak END
-	StrCpy $0 error
-	END:
-	Exch $0
-FunctionEnd
-Function Elevate
-	StrCmpS $SecondaryLaunch true 0 +2
-	Return
-	StrCpy $RunAsAdmin force
-	Elevate:
-	!insertmacro UAC_RunElevated
-	${Switch} $0
-		${Case} 0
-			${IfThen} $1 = 1 ${|} Quit ${|}
-			${If} $3 <> 0
-				${Break}
-			${EndIf}
-			${If} $1 = 3
-				MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION|MB_TOPMOST|MB_SETFOREGROUND \ 
-				"$(LauncherRequiresAdmin)$\r$\n$\r$\n$(LauncherNotAdminTryAgain)" IDRETRY Elevate
-				Quit
-			${EndIf}
-		${CaseUACCodeAlert} 1223 \
-			"$(LauncherRequiresAdmin)" \
-			"$(LauncherNotAdminLimitedFunctionality)"
-		${CaseUACCodeAlert} 1062 \
-			"$(LauncherAdminLogonServiceNotRunning)" \
-			"$(LauncherNotAdminLimitedFunctionality)"
-		${CaseUACCodeAlert} "" \
-			"$(LauncherAdminError)$\r$\n$(LauncherRequiresAdmin)" \
-			"$(LauncherAdminError)$\r$\n$(LauncherNotAdminLimitedFunctionality)"
-	${EndSwitch}
-FunctionEnd
-
-;= CUSTOM
-;= ################
-${SegmentFile}
-${Segment.OnInit}
-	ClearErrors
-	ReadRegDWORD $0 HKLM `${oNET}` `Release`
-	IfErrors +2
-	IntCmp $0 378389 +4 0 +4
-	MessageBox MB_ICONSTOP|MB_TOPMOST `$(NET)`
-	Call Unload
-	Quit
-!macroend
-!macro Variables
-    StrCpy $UpdateAvailable "false"
-    StrCpy $ErrorReason ""
-!macroend
-!macro OS
-	${If} ${IsNT}
-		${IfNot} ${AtLeastWin7}
-			MessageBox MB_ICONSTOP|MB_TOPMOST `$(OS)`
-			Call Unload
-			Quit
-		${EndIf}
+; Appends _DIR to $ExtraPath with a separator when needed.
+!define VSCode::AddPath "!insertmacro _VSCode::AddPath"
+!macro _VSCode::AddPath _DIR
+	${If} $ExtraPath == ""
+		StrCpy $ExtraPath `${_DIR}`
 	${Else}
-		MessageBox MB_ICONSTOP|MB_TOPMOST `$(OS)`
-		Call Unload
-		Quit
+		StrCpy $ExtraPath `$ExtraPath;${_DIR}`
 	${EndIf}
 !macroend
-!macro Init
-    ExpandEnvStrings "$CmdPath" "%COMSPEC%"
-    ${ConfigReads} `${CONFIG}` UpdateCheck= $0
-    StrCmpS $0 true 0 _FINISHED
-    
-    GetDllVersion `${EXE}` $R0 $R1
-    IntOp $R2 $R0 / 0x00010000
-    IntOp $R3 $R0 & 0x0000FFFF
-    IntOp $R4 $R1 / 0x00010000
-    IntOp $R5 $R1 & 0x0000FFFF
-    StrCpy $LocalVersion "$R2.$R3.$R4.0"
 
-    File /oname=$PLUGINSDIR\jq.exe  Contrib\bin\jq.exe
-    File /oname=$PLUGINSDIR\7za.exe Contrib\bin\7za.exe
-    
-    nsExec::ExecToStack '"$CmdPath" /C ""${CURL}" --no-progress-meter "${URL}" | ${jq} -r .productVersion"'
-	Pop $0   ; exit code
-    Pop $1   ; stdout (version string from jq)
-    ${TRIM} $2 $1
+; Functions
 
-    ${If} $2 == ""
-        ${UpdateFailed} "Couldn't retrieve latest version information"
-    ${EndIf}
-    StrCpy $RemoteVersion "$2.0"
-    
-    ${CompareVersions} $R6 $LocalVersion $RemoteVersion
-    
-    ${If} $R6 == 0
-        StrCpy $UpdateAvailable "true"
-    ${EndIf}
-
-    ${If} $UpdateAvailable == "false"
-        Goto _FINISHED
-    ${EndIf}
-
-    MessageBox MB_USERICON|MB_YESNO|MB_TOPMOST `$(UPDATE)` IDYES _UPDATE IDNO _FINISHED
-
-    _UPDATE:
-        Banner::show ""
-        Banner::getWindow
-        Pop $0
-        GetDlgItem $0 $0 1030
-        SendMessage $0 ${WM_SETTEXT} 0 "STR:$(DOWNLOAD)"
-
-        nsExec::ExecToStack `${CURL} --no-progress-meter -L --output-dir "$EXEDIR" -o "${ZIP}" "${DOWNLOAD}"`
-        Pop $0   ; exit code
-        Pop $1   ; stdout (unused for download)
-        Banner::destroy
-        
-        ${IfNot} ${FileExists} `${VSZIP}`
-            ${UpdateFailed} "Downloaded archive not found"
-        ${EndIf}
-
-        Rename `${APPDIR}` `${APPDIR}-backup`
-        CreateDirectory `${APPDIR}`
-
-        Banner::show ""
-        Banner::getWindow
-        Pop $0
-        GetDlgItem $0 $0 1030
-        SendMessage $0 ${WM_SETTEXT} 0 "STR:$(UPDATING)"
-        
-        File /oname=${7za} Contrib\bin\7za.exe
-        nsExec::Exec '"$PLUGINSDIR\7za.exe" x "${VSZIP}" -o"${APPDIR}" -y -bso0 -bsp1'
-        Pop $0
-        ${If} $0 != 0
-            ${UpdateFailed} "Extraction failed with code: $0"
-        ${EndIf}
-        
-        Banner::destroy
-
-        ${WriteAppInfoConfig} "Version" "DisplayVersion" "$RemoteVersion"
-        ${WriteAppInfoConfig} "Version" "PackageVersion" "$RemoteVersion"
-        
-        RMDir /r `${APPDIR}-backup`
-        
-        MessageBox MB_ICONINFORMATION|MB_TOPMOST `$(FINISHED)`
-        
-        Delete `${VSZIP}`
-        Goto _FINISHED
-
-    _FAILED:
-        MessageBox MB_ICONSTOP|MB_TOPMOST `$(FAILED)`
-        ${If} ${DirExists} `${APPDIR}-backup`
-            RMDir /r `${APPDIR}`
-            Rename `${APPDIR}-backup` `${APPDIR}`
-        ${EndIf}
-        Goto _FINISHED
-
-    _FINISHED:
-        ${ConfigReads} `${CONFIG}` Banner= $0
-        StrCmpS $0 true 0 +6
-        Banner::show ""
-        Banner::getWindow
-        Pop $0
-        GetDlgItem $0 $0 1030
-        SendMessage $0 ${WM_SETTEXT} 0 "STR:$(i)"
-        ${Init::File} code\User settings.json
-        ${Init::File} Fonts .Portable.Fonts.txt
-!macroend
-${SegmentPrePrimary}
-    ${File::BackupLocal} `${SND}`
-    CreateShortCut `${SND}` `${EXE}` "" `${EXE}` 0
-!macroend
-!macro PreExecExecute
-	Push `${CONFIG}`
-	Push Banner=
-	Call ReadS
+; Sets $R9 to true when $RemoteVersion looks like a version (digits and
+; dots, starting with a digit), else false. Anything else means the update
+; service returned an error page or "null".
+Function VSCode_IsVersion
+	Push $0
+	Push $1
+	StrCpy $R9 false
+	StrCpy $0 $RemoteVersion 1
+	${If} $0 S>= 0
+	${AndIf} $0 S<= 9
+		StrCpy $R9 true
+		StrCpy $1 0
+		${Do}
+			StrCpy $0 $RemoteVersion 1 $1
+			${IfThen} $0 == "" ${|} ${ExitDo} ${|}
+			${If} $0 S< 0
+			${OrIf} $0 S> 9
+				${If} $0 != .
+					StrCpy $R9 false
+					${ExitDo}
+				${EndIf}
+			${EndIf}
+			IntOp $1 $1 + 1
+		${Loop}
+	${EndIf}
+	Pop $1
 	Pop $0
-	StrCmpS $0 true 0 +3
-	StrCmpS $SecondaryLaunch true +2
+FunctionEnd
+
+; Cleans up after an update that was interrupted between moving the current
+; version aside and journaling that move, or between committing the new
+; version and deleting the old one. Only called when the journal holds no
+; update entry, so the journal never disagrees with what is done here.
+Function VSCode_RecoverUpdate
+	${If} ${FileExists} `${BACKUPDIR}\*.*`
+		${If} ${FileExists} `${EXE}`
+			; The new version was committed; the old copy is left over.
+			RMDir /r `${BACKUPDIR}`
+		${Else}
+			; The new version never got in place; put the old one back.
+			RMDir /r `${APPDIR}`
+			Rename `${BACKUPDIR}` `${APPDIR}`
+		${EndIf}
+	${EndIf}
+FunctionEnd
+
+; Puts App\VSCode back after an update that was interrupted. This runs from
+; the InstanceManagement segment, before the launcher checks that Code.exe
+; exists: an interrupted update can leave App\VSCode without it, and the
+; launcher would otherwise refuse to start before the journal got a chance to
+; repair it. Primary launches only, so it never touches an update another
+; launcher is still doing.
+Function VSCode_RepairAppDir
+	Push $0
+	${Journal::HasEntries} VSCodeUpdate $0
+	${If} $0 > 0
+		${Journal::Rollback} VSCodeUpdate
+	${Else}
+		Call VSCode_RecoverUpdate
+	${EndIf}
+	; A download left behind by an interrupted update.
+	Delete `${VSZIP}`
+	Pop $0
+FunctionEnd
+
+; Opens the download window: the banner, made wider, with a progress bar
+; under its text. The bar belongs to this thread, so VSCode_Pump has to run
+; while the download is waiting, or it would never be drawn.
+Function VSCode_ProgressOpen
+	Push $0
+	Push $1
+	Push $2
+	Push $3
+	Push $4
+	Push $5
+	Push $6
+	Push $7
+	Push $8
+	Push $9
+	Banner::show "$(DOWNLOAD)"
+	Banner::getWindow
+	Pop $DlWindow
+	GetDlgItem $DlLabel $DlWindow 1030
+	StrCpy $DlShown ""
+	System::Call 'comctl32::InitCommonControls()'
+	System::Call '*(i,i,i,i) p .r0'
+	System::Call 'user32::GetWindowRect(p $DlWindow, p r0)'
+	System::Call '*$0(i .r1, i .r2, i .r3, i .r4)'
+	System::Call 'user32::GetWindowRect(p $DlLabel, p r0)'
+	System::Call 'user32::MapWindowPoints(p 0, p $DlWindow, p r0, i 2)'
+	System::Call '*$0(i .r5, i .r6, i .r7, i .r8)'
+	System::Free $0
+	; Sizes come from the label, so they follow the DPI the banner uses:
+	; the bar is as tall as the label, with half that as the gap above it,
+	; and both are made half as wide again.
+	Push $R8
+	Push $R9
+	IntOp $9 $7 - $5
+	IntOp $0 $8 - $6
+	IntOp $R9 $0 / 2
+	IntOp $R8 $9 / 2
+	IntOp $9 $9 + $R8
+	; The window grows by the same amounts and stays centred where it was.
+	IntOp $3 $3 - $1
+	IntOp $3 $3 + $R8
+	IntOp $4 $4 - $2
+	IntOp $4 $4 + $0
+	IntOp $4 $4 + $R9
+	IntOp $7 $R8 / 2
+	IntOp $1 $1 - $7
+	IntOp $7 $0 + $R9
+	IntOp $7 $7 / 2
+	IntOp $2 $2 - $7
+	; SWP_NOZORDER|SWP_NOACTIVATE
+	System::Call 'user32::SetWindowPos(p $DlWindow, p 0, i r1, i r2, i r3, i r4, i 0x14)'
+	; SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE
+	System::Call 'user32::SetWindowPos(p $DlLabel, p 0, i 0, i 0, i r9, i r0, i 0x16)'
+	IntOp $8 $8 + $R9
+	Pop $R9
+	Pop $R8
+	; WS_CHILD|WS_VISIBLE, PBS_SMOOTH
+	System::Call 'user32::CreateWindowExW(i 0, w "msctls_progress32", w "", i 0x50000001, i r5, i r8, i r9, i r0, p $DlWindow, p 0, p 0, p 0) p .s'
+	Pop $DlBar
+	${If} $DlTotalKB > 0
+		; PBM_SETRANGE32 0 to 100
+		SendMessage $DlBar 0x406 0 100
+	${Else}
+		; Size unknown: a marquee (PBS_MARQUEE, PBM_SETMARQUEE).
+		System::Call 'user32::GetWindowLongW(p $DlBar, i -16) i .r1'
+		IntOp $1 $1 | 0x08
+		System::Call 'user32::SetWindowLongW(p $DlBar, i -16, i r1)'
+		SendMessage $DlBar 0x40A 1 30
+	${EndIf}
+	System::Call '*(&i32) p .s'
+	Pop $DlMsg
+	Call VSCode_Pump
+	Pop $9
+	Pop $8
+	Pop $7
+	Pop $6
+	Pop $5
+	Pop $4
+	Pop $3
+	Pop $2
+	Pop $1
+	Pop $0
+FunctionEnd
+
+Function VSCode_ProgressClose
+	${If} $DlBar != ""
+		System::Call 'user32::DestroyWindow(p $DlBar)'
+		StrCpy $DlBar ""
+	${EndIf}
+	${If} $DlMsg != ""
+		System::Free $DlMsg
+		StrCpy $DlMsg ""
+	${EndIf}
 	Banner::destroy
-	;=#
-	;= Detect Environments
+FunctionEnd
+
+; Handles the messages waiting for this thread (the progress bar's).
+Function VSCode_Pump
+	Push $0
+	${Do}
+		; PM_REMOVE
+		System::Call 'user32::PeekMessageW(p $DlMsg, p 0, i 0, i 0, i 1) i .r0'
+		${IfThen} $0 = 0 ${|} ${ExitDo} ${|}
+		System::Call 'user32::TranslateMessage(p $DlMsg)'
+		System::Call 'user32::DispatchMessageW(p $DlMsg)'
+	${Loop}
+	Pop $0
+FunctionEnd
+
+; Shows $0 bytes downloaded: "45%  (60.2 / 133.4 MB)", or "60.2 MB" when
+; the size is unknown. The text only changes when the numbers do.
+Function VSCode_ProgressSet
+	Push $1
+	Push $2
+	Push $3
+	Push $4
+	IntOp $1 $0 / 1024
+	; Tenths of a MB.
+	IntOp $2 $1 * 10
+	IntOp $2 $2 / 1024
+	IntOp $3 $2 % 10
+	IntOp $2 $2 / 10
+	StrCpy $2 `$2.$3`
+	${If} $DlTotalKB > 0
+		IntOp $4 $1 * 100
+		IntOp $4 $4 / $DlTotalKB
+		${IfThen} $4 > 100 ${|} StrCpy $4 100 ${|}
+		IntOp $3 $DlTotalKB * 10
+		IntOp $3 $3 / 1024
+		IntOp $1 $3 % 10
+		IntOp $3 $3 / 10
+		StrCpy $3 `$4%  ($2 / $3.$1 MB)`
+		SendMessage $DlBar 0x402 $4 0
+	${Else}
+		StrCpy $3 `$2 MB`
+	${EndIf}
+	${If} $3 != $DlShown
+		StrCpy $DlShown $3
+		SendMessage $DlLabel ${WM_SETTEXT} 0 `STR:$(DOWNLOAD)  $3`
+	${EndIf}
+	Pop $4
+	Pop $3
+	Pop $2
+	Pop $1
+FunctionEnd
+
+; Sets $DlTotalKB to the size of the download in KB, or 0 when the server
+; doesn't say. curl writes the response headers to a file; the last
+; Content-Length in it counts, the ones before belong to redirects.
+Function VSCode_DownloadSize
+	Push $0
+	Push $1
+	Push $2
+	StrCpy $DlTotalKB 0
+	InitPluginsDir
+	Delete `$PLUGINSDIR\headers.txt`
+	nsExec::Exec `"${CURL}" -fsSIL -o "$PLUGINSDIR\headers.txt" "${DOWNLOAD}"`
+	Pop $0
+	ClearErrors
+	FileOpen $0 `$PLUGINSDIR\headers.txt` r
+	${IfNot} ${Errors}
+		${Do}
+			ClearErrors
+			FileRead $0 $1
+			${IfThen} ${Errors} ${|} ${ExitDo} ${|}
+			; == ignores case, and HTTP/2 headers are lower case.
+			StrCpy $2 $1 15
+			${If} $2 == "content-length:"
+				StrCpy $1 $1 "" 15
+				${Trim} $1 $1
+				StrCpy $2 $1 1
+				${If} $2 S>= 0
+				${AndIf} $2 S<= 9
+					IntOp $DlTotalKB $1 / 1024
+				${EndIf}
+			${EndIf}
+		${Loop}
+		FileClose $0
+	${EndIf}
+	${IfThen} $DlTotalKB < 0 ${|} StrCpy $DlTotalKB 0 ${|}
+	Pop $2
+	Pop $1
+	Pop $0
+FunctionEnd
+
+; Downloads the new version to ${VSZIP} with curl, showing its progress.
+; $0 is curl's exit code, or -1 when curl could not be started.
+Function VSCode_Download
+	Push $1
+	Push $2
+	Push $3
+	Push $4
+	Push $5
+	Push $6
+	Delete `${VSZIP}`
+	Call VSCode_DownloadSize
+	Call VSCode_ProgressOpen
+	StrCpy $0 -1
+	StrCpy $1 `"${CURL}" -fsSL -o "${VSZIP}" "${DOWNLOAD}"`
+	System::Call '*(i 68, &i64) p .r2'
+	System::Call '*(&i16) p .r3'
+	; CREATE_NO_WINDOW
+	System::Call 'kernel32::CreateProcessW(p 0, w r1, p 0, p 0, i 0, i 0x08000000, p 0, p 0, p r2, p r3) i .r4'
+	${If} $4 <> 0
+		System::Call '*$3(p .r4, p .r5)'
+		System::Call 'kernel32::CloseHandle(p r5)'
+		StrCpy $DlProcess $4
+		System::Call '*(&i36) p .r6'
+		${Do}
+			System::Call 'kernel32::WaitForSingleObject(p $DlProcess, i 100) i .r5'
+			Call VSCode_Pump
+			; nFileSizeLow of WIN32_FILE_ATTRIBUTE_DATA, at offset 32.
+			StrCpy $0 0
+			System::Call 'kernel32::GetFileAttributesExW(w "${VSZIP}", i 0, p r6) i .r4'
+			${If} $4 <> 0
+				System::Call '*$6(&i32, i .r0)'
+			${EndIf}
+			Call VSCode_ProgressSet
+		${LoopWhile} $5 <> 0
+		System::Call 'kernel32::GetExitCodeProcess(p $DlProcess, *i .r0)'
+		System::Call 'kernel32::CloseHandle(p $DlProcess)'
+		System::Free $6
+	${EndIf}
+	System::Free $2
+	System::Free $3
+	Call VSCode_ProgressClose
+	Pop $6
+	Pop $5
+	Pop $4
+	Pop $3
+	Pop $2
+	Pop $1
+FunctionEnd
+
+; Checks for a newer VS Code and, if the user agrees, swaps it in.
+Function VSCode_Update
+	${ConfigReads} `${CONFIG}` UpdateCheck= $0
+	${If} $0 != true
+		Return
+	${EndIf}
+	; An earlier update that could not be undone yet (for example a file was
+	; still in use) is retried on the next launch; don't start another one.
+	${Journal::HasEntries} VSCodeUpdate $0
+	${If} $0 > 0
+		Return
+	${EndIf}
+	${IfNot} ${FileExists} `${EXE}`
+		Return
+	${EndIf}
+
+	GetDllVersion `${EXE}` $R0 $R1
+	IntOp $R2 $R0 / 0x00010000
+	IntOp $R3 $R0 & 0x0000FFFF
+	IntOp $R4 $R1 / 0x00010000
+	StrCpy $LocalVersion `$R2.$R3.$R4`
+
+	InitPluginsDir
+	File /oname=$PLUGINSDIR\jq.exe Contrib\bin\jq.exe
+	ExpandEnvStrings $CmdPath "%COMSPEC%"
+	nsExec::ExecToStack `"$CmdPath" /C ""${CURL}" -fsS "${URL}" | "${jq}" -r .productVersion 2>nul"`
+	Pop $0
+	Pop $1
+	${Trim} $RemoteVersion $1
+	Call VSCode_IsVersion
+	${If} $0 != 0
+	${OrIf} $R9 != true
+		StrCpy $ErrorReason "Couldn't retrieve the latest version information."
+		Goto failed
+	${EndIf}
+
+	; 0 = same, 1 = local is newer, 2 = remote is newer.
+	${VersionCompare} $LocalVersion $RemoteVersion $0
+	${If} $0 != 2
+		Return
+	${EndIf}
+	MessageBox MB_USERICON|MB_YESNO|MB_TOPMOST `$(UPDATE)` IDYES +2
+	Return
+
+	Call VSCode_Download
+	${If} $0 != 0
+	${OrIfNot} ${FileExists} `${VSZIP}`
+		StrCpy $ErrorReason "The download failed."
+		Goto failed
+	${EndIf}
+
+	${VSCode::Banner} `$(UPDATING)`
+	File /oname=${7za} Contrib\bin\7za.exe
+	; Moving the current version aside is the backup. It is journaled right
+	; away, so from here on a failure or a crash puts it back: the undo
+	; deletes whatever was extracted and moves the backup into place again.
+	ClearErrors
+	Rename `${APPDIR}` `${BACKUPDIR}`
+	${If} ${Errors}
+		Banner::destroy
+		StrCpy $ErrorReason "${APP} is in use and can't be replaced right now."
+		Goto failed
+	${EndIf}
+	${Journal::Record} VSCodeUpdate DIR `${APPDIR}` `${BACKUPDIR}` recursive ""
+	CreateDirectory `${APPDIR}`
+	nsExec::Exec `"${7za}" x "${VSZIP}" -o"${APPDIR}" -y -bso0 -bsp0`
+	Pop $0
+	Banner::destroy
+	${If} $0 != 0
+	${OrIfNot} ${FileExists} `${EXE}`
+		${Journal::Rollback} VSCodeUpdate
+		StrCpy $ErrorReason "The download could not be extracted (7-Zip exit code $0). The previous version was kept."
+		Goto failed
+	${EndIf}
+
+	; Commit. The entry goes first: if the launcher stops before the old
+	; copy is deleted, VSCode_RecoverUpdate deletes it on the next launch.
+	${Journal::Discard} VSCodeUpdate
+	RMDir /r `${BACKUPDIR}`
+	Delete `${VSZIP}`
+	${WriteAppInfoConfig} Version DisplayVersion `$RemoteVersion.0`
+	${WriteAppInfoConfig} Version PackageVersion `$RemoteVersion.0`
+	MessageBox MB_ICONINFORMATION|MB_TOPMOST `$(FINISHED)`
+	Return
+
+	failed:
+	Delete `${VSZIP}`
+	MessageBox MB_ICONSTOP|MB_TOPMOST `$(FAILED)`
+FunctionEnd
+
+; Journals a registry key under HKCU that VS Code writes for itself while it
+; runs, so it is put back the way it was afterwards.
+Function VSCode_JournalUserKey
+	Exch $1
+	Push $0
+	${Journal::RegKey} VSCode HKCU `$1` $0
+	${If} $0 == ""
+		${DebugMsg} "HKCU\$1 could not be backed up; VS Code's change to it will stay."
+	${EndIf}
+	Pop $0
+	Pop $1
+FunctionEnd
+
+; The journaled session changes. Every one is recorded before it is made.
+Function VSCode_Apply
+	; SendTo shortcut. It runs the launcher, so a file sent while VS Code is
+	; open goes to the running portable instance.
+	SetShellVarContext current
+	${Journal::BackupFile} VSCode `${SND}` $0
+	${Journal::Record} VSCode FILE `${SND}` $0 "" ""
+	CreateShortCut `${SND}` `$EXEPATH` "" `${EXE}` 0
+
+	; VS Code registers the vscode:// protocol for itself on every start.
+	Push `Software\Classes\vscode`
+	Call VSCode_JournalUserKey
+	Push `Software\Classes\Applications\Code.exe`
+	Call VSCode_JournalUserKey
+
+	; Long path support is machine wide and needs administrator rights. The
+	; launcher doesn't ask for them (VS Code must not run elevated, and an
+	; elevated launcher can't pass PATH to a program it starts as the user),
+	; so this only happens when it was started as administrator on purpose,
+	; and only for the session.
+	${If} $Admin == true
+		ClearErrors
+		ReadRegDWORD $0 HKLM `${LONGPATHS_KEY}` LongPathsEnabled
+		${If} ${Errors}
+			StrCpy $0 ""
+			StrCpy $1 ""
+		${Else}
+			StrCpy $1 `DWORD:$0`
+		${EndIf}
+		${If} $0 != 1
+			${Journal::Record} VSCode REGVALUE HKLM `${LONGPATHS_KEY}` LongPathsEnabled $1
+			WriteRegDWORD HKLM `${LONGPATHS_KEY}` LongPathsEnabled 1
+		${EndIf}
+	${EndIf}
+FunctionEnd
+
+; Git, Python and Node.js from the user configuration.
+Function VSCode_ToolPaths
+	ExpandEnvStrings $CmdPath "%COMSPEC%"
+	StrCpy $ExtraPath ""
+	StrCpy $PythonPath ""
+
 	; Git
 	${ConfigReads} `${CONFIG}` GIT= $GitDir
-	ExpandEnvStrings "$GitDir" "$GitDir"
-	${If} ${FileExists} "$GitDir\cmd\git.exe"
+	ExpandEnvStrings $GitDir $GitDir
+	${If} $GitDir != ""
+	${AndIf} ${FileExists} `$GitDir\cmd\git.exe`
 		${ConfigReads} `${CONFIG}` GitHomePath= $GitHome
-		${If} "$GitHome" == "true"
+		${If} $GitHome == true
 			CreateDirectory `${DATA}\Git\home`
-			; If not set, the default is "%UserProfile%"
-			${SetEnvironmentVariablesPath} "HOME" `${DATA}\Git\home`
-			; Also copy custom shell config files on first run (contains workaround for "cd" command)
-			; These files may be overwritten by Oh My Zsh, so you may need to re-add the "cd" alias manually
+			; If not set, the default is "%UserProfile%".
+			${SetEnvironmentVariablesPath} HOME `${DATA}\Git\home`
+			; Also copy custom shell config files on first run (contains a
+			; workaround for the "cd" command). Oh My Zsh may overwrite them,
+			; so the "cd" alias may need to be added again by hand.
 			${IfNot} ${FileExists} `${DATA}\Git\home\.bashrc`
-				CopyFiles /Silent `${DEFDATA}\Git\home\.bashrc` `${DATA}\Git\home`
+				CopyFiles /SILENT `${DEFDATA}\Git\home\.bashrc` `${DATA}\Git\home`
 			${EndIf}
 		${EndIf}
-		${If} ${FileExists} "$GitDir\post-install.bat"
-			; Portable Git post installation
-			; Cmd crazily remove quotes so nesting it will be needed
-			nsExec::Exec '"$CmdPath" /C ""$GitDir\post-install.bat""'
+		${If} ${PrimaryInstance}
+		${AndIf} ${FileExists} `$GitDir\post-install.bat`
+			; Portable Git post installation. It deletes itself when done.
+			; Cmd removes the outer quotes, so the command is nested in a pair.
+			nsExec::Exec `"$CmdPath" /C ""$GitDir\post-install.bat""`
+			Pop $0
 		${EndIf}
-		; Initial value to be added to "PATH"
-		StrCpy "$ExtraPath" "$GitDir\bin;$GitDir\cmd"
+		${VSCode::AddPath} `$GitDir\bin;$GitDir\cmd`
 	${EndIf}
-    ; Python
+
+	; Python
 	${ConfigReads} `${CONFIG}` PYTHON= $PythonDir
-	ExpandEnvStrings "$PythonDir" "$PythonDir"
-	${If} ${FileExists} "$PythonDir\python.exe"
-        ${ConfigReads} `${CONFIG}` PythonUserPath= $PythonUser
-		${If} "$PythonUser" == "true"
-			; Change Python user's base directory (the default is "%AppData%\Python")
-			; Will not affect globally installed packages (local user packages only)
-			${SetEnvironmentVariablesPath} "PYTHONUSERBASE" `${DATA}\Python`
+	ExpandEnvStrings $PythonDir $PythonDir
+	${If} $PythonDir != ""
+	${AndIf} ${FileExists} `$PythonDir\python.exe`
+		${ConfigReads} `${CONFIG}` PythonUserPath= $PythonUser
+		${If} $PythonUser == true
+			; Changes the user base directory (the default is
+			; "%AppData%\Python"). Globally installed packages are not affected.
+			${SetEnvironmentVariablesPath} PYTHONUSERBASE `${DATA}\Python`
 		${EndIf}
-		; Get user "scripts" directory and add it to "PATH"
-		nsExec::ExecToStack '"$PythonDir\python.exe" -m site --user-site'
+		; Add the user "scripts" directory to PATH as well.
+		nsExec::ExecToStack `"$PythonDir\python.exe" -m site --user-site`
 		Pop $R1
+		Pop $R2
 		${If} $R1 == 0
-			Pop $R2
+			${Trim} $R2 $R2
 			${GetParent} $R2 $R2
-			StrCpy "$ExtraPath" "$ExtraPath;$PythonDir;$PythonDir\scripts;$R2\scripts"
+			${VSCode::AddPath} `$PythonDir;$PythonDir\Scripts;$R2\Scripts`
 		${Else}
-			StrCpy "$ExtraPath" "$ExtraPath;$PythonDir;$PythonDir\scripts"
+			${VSCode::AddPath} `$PythonDir;$PythonDir\Scripts`
 		${EndIf}
-		ExpandEnvStrings "$PythonPath" "%PYTHONPATH%"
-		${If} "$PythonPath" == ""
-			StrCpy "$PythonPath" "$PythonDir\lib;$PythonDir\dlls"
+		ReadEnvStr $PythonPath PYTHONPATH
+		${If} $PythonPath == ""
+			StrCpy $PythonPath `$PythonDir\Lib;$PythonDir\DLLs`
 		${Else}
-			StrCpy "$PythonPath" "$PythonDir\lib;$PythonDir\dlls;$PythonPath"
+			StrCpy $PythonPath `$PythonDir\Lib;$PythonDir\DLLs;$PythonPath`
 		${EndIf}
+		${SetEnvironmentVariablesPath} PYTHONPATH $PythonPath
 	${EndIf}
-    ; Node.js
+
+	; Node.js
 	${ConfigReads} `${CONFIG}` NODEJS= $NodeJSDir
-	ExpandEnvStrings "$NodeJSDir" "$NodeJSDir"
-	${If} ${FileExists} "$NodeJSDir\node.exe"
+	ExpandEnvStrings $NodeJSDir $NodeJSDir
+	${If} $NodeJSDir != ""
+	${AndIf} ${FileExists} `$NodeJSDir\node.exe`
 		${ConfigReads} `${CONFIG}` NodePrefixPath= $NodePrefix
-		${If} "$NodePrefix" == "true"
-			; Force change Node.js user's prefix and cache path
-			; If not changed, the default is "%AppData%\npm" and "%AppData%\npm-cache"
-			; May be dangerous on shared computer, as it will write its config to "%UserProfile%\.npmrc"
-			nsExec::Exec '"$CmdPath" /C ""$NodeJSDir\npm.cmd" config set prefix `${DATA}\Node.js\npm`"'
-			nsExec::Exec '"$CmdPath" /C ""$NodeJSDir\npm.cmd" config set cache `${DATA}\Node.js\npm-cache`"'
+		${If} $NodePrefix == true
+		${AndIf} ${PrimaryInstance}
+			; Moves the npm prefix and cache (the defaults are "%AppData%\npm"
+			; and "%AppData%\npm-cache"). npm writes this to
+			; "%UserProfile%\.npmrc", so think twice on a shared computer.
+			nsExec::Exec `"$CmdPath" /C ""$NodeJSDir\npm.cmd" config set prefix "${DATA}\Node.js\npm""`
+			Pop $0
+			nsExec::Exec `"$CmdPath" /C ""$NodeJSDir\npm.cmd" config set cache "${DATA}\Node.js\npm-cache""`
+			Pop $0
 		${EndIf}
-		; Get prefix directory and add it to "PATH"
-		nsExec::ExecToStack '"$CmdPath" /C ""$NodeJSDir\npm.cmd" config get prefix"'
+		; Add the prefix directory to PATH as well.
+		nsExec::ExecToStack `"$CmdPath" /C ""$NodeJSDir\npm.cmd" config get prefix"`
 		Pop $R1
+		Pop $R2
 		${If} $R1 == 0
-			Pop $R2
-			; Trim trailing newline from npm output
-			; This will break cmd if left untouched
-			${TrimNewLines} $R2 $R2
-			StrCpy "$ExtraPath" "$ExtraPath;$NodeJSDir;$R2"
+			${Trim} $R2 $R2
+			${VSCode::AddPath} `$NodeJSDir;$R2`
 		${Else}
-			StrCpy "$ExtraPath" "$ExtraPath;$NodeJSDir"
+			${VSCode::AddPath} $NodeJSDir
 		${EndIf}
 	${EndIf}
-	; Add environments with the %PATH%
-	; This %PATH% will only be used by VSCode Portable
-	StrLen $R1 "$ExtraPath_$BasePath_"
-	IntOp $R1 $R1 * ${NSIS_CHAR_SIZE}
-	${If} $R1 < ${NSIS_MAX_STRLEN}
-		${SetEnvironmentVariablesPath} "PATH" "$ExtraPath;$BasePath"
-	${Else}
-		MessageBox MB_OK|MB_ICONEXCLAMATION `$(PATH)`
+
+	; The tools go in front of the existing PATH, for VS Code only.
+	${If} $ExtraPath != ""
+		ReadEnvStr $BasePath PATH
+		StrLen $R1 `$ExtraPath;$BasePath`
+		${If} $R1 < ${NSIS_MAX_STRLEN}
+			System::Call `kernel32::SetEnvironmentVariable(t "PATH", t "$ExtraPath;$BasePath")`
+		${Else}
+			MessageBox MB_OK|MB_ICONEXCLAMATION `$(PATH)`
+		${EndIf}
 	${EndIf}
-	; Set or modify "PYTHONPATH"
-	${SetEnvironmentVariablesPath} "PYTHONPATH" "$PythonPath"
-	; On first initial launch, Install any  VSIX files to the 
-	; extensions folder if the user configuration premits it
+FunctionEnd
+
+; Offers each bundled .vsix file once. The answer is remembered in
+; Data\code\VSIXInstalled.ini, so a file added later is offered too.
+Function VSCode_InstallVSIX
 	${ConfigReads} `${CONFIG}` InstallVSIX= $0
+	${If} $0 != true
+		Return
+	${EndIf}
+	ExpandEnvStrings $CmdPath "%COMSPEC%"
+	FindFirst $R1 $R2 `${DEFDATA}\code\extensions\*.vsix`
+	${DoWhile} $R2 != ""
+		ReadINIStr $0 `${VSIXLIST}` Installed $R2
+		${If} $0 == ""
+			StrCpy $3 declined
+			MessageBox MB_YESNO|MB_ICONQUESTION `$(VSIX)` IDNO +2
+			StrCpy $3 yes
+			${If} $3 == yes
+				nsExec::Exec `"$CmdPath" /C ""${APPDIR}\bin\code.cmd" --user-data-dir "${DATA}\code" --extensions-dir "${DATA}\code\extensions" --install-extension "${DEFDATA}\code\extensions\$R2""`
+				Pop $0
+				${If} $0 == 0
+					StrCpy $3 installed
+				${Else}
+					; Not remembered, so it is offered again next time.
+					StrCpy $3 ""
+				${EndIf}
+			${EndIf}
+			${If} $3 != ""
+				WriteINIStr `${VSIXLIST}` Installed $R2 $3
+			${EndIf}
+		${EndIf}
+		FindNext $R1 $R2
+	${Loop}
+	FindClose $R1
+FunctionEnd
+
+; Hooks
+
+; Environment segment, Init and Pre. The launcher's own path, used by the
+; association, context menu and SendTo commands so they go through it.
+!macro Variables
+	System::Call `kernel32::SetEnvironmentVariable(t "PAL:LauncherPath", t "$EXEPATH")`
+	System::Call `kernel32::SetEnvironmentVariable(t "PAL:LauncherDir", t "$EXEDIR")`
+!macroend
+
+; InstanceManagement segment, Init, right before Code.exe is looked for.
+!macro EXE
+	${If} $SecondaryLaunch != true
+		Call VSCode_RepairAppDir
+	${EndIf}
+!macroend
+
+; Settings segment, Init, primary instance only.
+!macro Init
+	${Init::File} code\User settings.json
+	${Init::File} Fonts ""
+!macroend
+
+${SegmentFile}
+
+${SegmentPrePrimary}
+	; Runs after crash recovery and after the journal session is open.
+	Call VSCode_Update
+	Call VSCode_Apply
+	${ConfigReads} `${CONFIG}` Banner= $0
 	${If} $0 == true
-        ${IfNot} ${FileExists} `${DATA}\code\extensions\*.*`
-            FindFirst $R1 $R2 `${DEFDATA}\code\extensions\*.vsix`
-            _CHECKVSIX:
-            ${If} $R2 != ""
-                MessageBox MB_YESNO|MB_ICONQUESTION `$(VSIX)` IDNO +2
-                ExecWait '"$CmdPath" /C "`${APPDIR}\bin\code.cmd` --install-extension `${DEFDATA}\code\extensions\$R2`"'
-                FindNext $R1 $R2
-                Goto _CHECKVSIX
-            ${EndIf}
-            FindClose $R1
-        ${EndIf}
-    ${EndIf}
+		${VSCode::Banner} `$(i)`
+	${EndIf}
 !macroend
+
+!macro PreExecExecute
+	${If} ${PrimaryInstance}
+		Banner::destroy
+	${EndIf}
+	Call VSCode_ToolPaths
+	${If} ${PrimaryInstance}
+		Call VSCode_InstallVSIX
+	${EndIf}
+!macroend
+
 ${SegmentPostPrimary}
-	${File::RestoreLocal} `${SND}`
-!macroend
-!macro PreReg
-    ${ConfigReads} `${CONFIG}` Associations= $0
-	StrCmpS $0 true 0 _PREREG_SKIP
-        StrCpy $0 1
-        ClearErrors
-        ReadINIStr $1 `${LAUNCHER}` Associations $0
-        IfErrors +49
-        Push $1
-        Call GetIconIndex
-        Pop $1
-        StrCmpS $1 error +43
-        StrCpy $2 1
-        IfFileExists `${RUNTIME}` 0 +3
-        ReadINIStr $3 `${RUNTIME}` Associations $2
-        Goto +2
-        ReadINIStr $3 `${RUNTIME2}` Associations $2
-        StrCmpS $3 "" +3
-        IntOp $2 $2 + 1
-        Goto -6
-        WriteINIStr `${RUNTIME}` Associations $2 $1
-        WriteINIStr `${RUNTIME2}` Associations $2 $1
-        Registry::_KeyExists /NOUNLOAD `${_}\${ULS}\.$1`
-        Pop $2
-        StrCmpS $2 -1 0 +6
-        Registry::_KeyExists /NOUNLOAD `${ULS}\.$1`
-        Pop $2
-        StrCmpS $2 0 0 +3
-        Registry::_MoveKey /NOUNLOAD `${ULS}\.$1` `${_}\${ULS}\.$1`
-        Pop $2
-        Registry::_KeyExists /NOUNLOAD `${_}\${ULS}\${APP}.$1`
-        Pop $2
-        StrCmpS $2 -1 0 +6
-        Registry::_KeyExists /NOUNLOAD `${ULS}\${APP}.$1`
-        Pop $2
-        StrCmpS $2 0 0 +3
-        Registry::_MoveKey /NOUNLOAD `${ULS}\${APP}.$1` `${_}\${ULS}\${APP}.$1`
-        Pop $2
-        Registry::_KeyExists /NOUNLOAD `${_}\${EXT}\.$1`
-        Pop $2
-        StrCmpS $2 -1 0 +6
-        Registry::_KeyExists /NOUNLOAD `${EXT}\.$1`
-        Pop $2
-        StrCmpS $2 0 0 +3
-        Registry::_MoveKey /NOUNLOAD `${EXT}\.$1` `${_}\${EXT}\.$1`
-        Pop $2
-        Registry::_KeyExists /NOUNLOAD `${_}\${EXTS}\.$1`
-        Pop $2
-        StrCmpS $2 -1 0 +6
-        Registry::_KeyExists /NOUNLOAD `${EXTS}\.$1`
-        Pop $2
-        StrCmpS $2 0 0 +3
-        Registry::_MoveKey /NOUNLOAD `${EXTS}\.$1` `${_}\${EXTS}\.$1`
-        Pop $2
-        IntOp $0 $0 + 1
-        Goto -50
-    _PREREG_SKIP:
-!macroend
-!macro UnPreRegWrite
-    ${ConfigReads} `${CONFIG}` Associations= $0
-	StrCmpS $0 true 0 _UNPREREG_WRITE_SKIP
-	    StrCpy $0 1
-		IfFileExists `${RUNTIME}` 0 +4
-		ClearErrors
-		ReadINIStr $1 `${RUNTIME}` Associations $0
-		Goto +3
-		ClearErrors
-		ReadINIStr $1 `${RUNTIME2}` Associations $0
-		IfErrors +11
-			Push $1
-			Call GetIconIndex
-			Pop $1
-		WriteRegStr HKCU `${CL}\.$1` "" ${APP}.$1
-		WriteRegStr HKCU `${CL}\${APP}.$1\DefaultIcon` "" `${EXE}`
-		WriteRegStr HKCU `${CL}\${APP}.$1\shell\open` "" `${APP}`
-		WriteRegStr HKCU `${CL}\${APP}.$1\shell\open` Icon `${EXE}`
-		WriteRegStr HKCU `${CL}\${APP}.$1\shell\open\command` "" `"${EXE}" "%1"`
-		IntOp $0 $0 + 1
-	    Goto -16
-    _UNPREREG_WRITE_SKIP:
-!macroend
-!macro PostReg
-    ${ConfigReads} `${CONFIG}` Associations= $0
-	StrCmpS $0 true 0 _POSTREG_SKIP
-        StrCpy $0 1
-            IfFileExists `${RUNTIME}` 0 +4
-            ClearErrors
-            ReadINIStr $1 `${RUNTIME}` Associations $0
-            Goto +3
-            ClearErrors
-            ReadINIStr $1 `${RUNTIME2}` Associations $0
-            IfErrors +59
-            Registry::_DeleteKey /NOUNLOAD `${ULS}\.$1`
-            Pop $2
-            Registry::_KeyExists /NOUNLOAD `${_}\${ULS}\.$1`
-            Pop $2
-            StrCmpS $2 0 0 +10
-                Registry::_MoveKey /NOUNLOAD `${_}\${ULS}\.$1` `${ULS}\.$1`
-                Pop $2
-                    StrCpy $3 `${ULS}\.$1`
-                    Push `$3`
-                    Call Get.Parent
-                    Pop $3
-                    Registry::_DeleteKeyEmpty /NOUNLOAD `${_}\$3`
-                    Pop $2
-                StrCmpS $3 "" 0 -5
-            Registry::_DeleteKey /NOUNLOAD `${ULS}\${APP}.$1`
-            Pop $2
-            Registry::_KeyExists /NOUNLOAD `${_}\${ULS}\${APP}.$1`
-            Pop $2
-            StrCmpS $2 0 0 +10
-                Registry::_MoveKey /NOUNLOAD `${_}\${ULS}\${APP}.$1` `${ULS}\${APP}.$1`
-                Pop $2
-                    StrCpy $3 `${ULS}\${APP}.$1`
-                    Push `$3`
-                    Call Get.Parent
-                    Pop $3
-                    Registry::_DeleteKeyEmpty /NOUNLOAD `${_}\$3`
-                    Pop $2
-                StrCmpS $3 "" 0 -5
-            Registry::_DeleteKey /NOUNLOAD `${EXT}\.$1`
-            Pop $2
-            Registry::_KeyExists /NOUNLOAD `${_}\${EXT}\.$1`
-            Pop $2
-            StrCmpS $2 0 0 +10
-                Registry::_MoveKey /NOUNLOAD `${_}\${EXT}\.$1` `${EXT}\.$1`
-                Pop $2
-                StrCpy $3 `${EXT}\.$1`
-                    Push `$3`
-                    Call Get.Parent
-                    Pop $3
-                    Registry::_DeleteKeyEmpty /NOUNLOAD `${_}\$3`
-                    Pop $2
-                StrCmpS $3 "" 0 -5
-            Registry::_DeleteKey /NOUNLOAD `${EXTS}\.$1`
-            Pop $2
-            Registry::_KeyExists /NOUNLOAD `${_}\${EXTS}\.$1`
-            Pop $2
-            StrCmpS $2 0 0 +10
-                Registry::_MoveKey /NOUNLOAD `${_}\${EXTS}\.$1` `${EXTS}\.$1`
-                Pop $2
-                StrCpy $3 `${EXTS}\.$1`
-                    Push `$3`
-                    Call Get.Parent
-                    Pop $3
-                    Registry::_DeleteKeyEmpty /NOUNLOAD `${_}\$3`
-                    Pop $2
-                StrCmpS $3 "" 0 -5
-            IntOp $0 $0 + 1
-        Goto -64
-        Registry::_DeleteKeyEmpty /NOUNLOAD ${_}
-        Pop $2
-        Registry::_DeleteKeyEmpty /NOUNLOAD ${PAF}
-        Pop $2
-    _POSTREG_SKIP:
-!macroend
-${SegmentUnload}
-	FindFirst $0 $1 `$LOCALAPPDATA\Microsoft\*`
-	StrCmpS $0 "" +12
-	StrCmpS $1 "" +11
-	StrCmpS $1 "." +8
-	StrCmpS $1 ".." +7
-	StrCpy $2 $1 3
-	StrCmpS $2 CLR 0 +5
-	IfFileExists `$LOCALAPPDATA\Microsoft\$1\UsageLogs\${APP}.exe.log` 0 +2
-	Delete `$LOCALAPPDATA\Microsoft\$1\UsageLogs\*.log`
-	RMDir `$LOCALAPPDATA\Microsoft\$1\UsageLogs`
-	RMDir `$LOCALAPPDATA\Microsoft\$1`
-	FindNext $0 $1
-	Goto -10
-	FindClose $0
+	${Journal::HasEntries} VSCode $R0
+	${If} $R0 > 0
+		${Journal::Rollback} VSCode
+	${EndIf}
 !macroend
